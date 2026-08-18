@@ -2,194 +2,181 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TongStore AICHI 入店システム</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>TongStore 傾き玉転がし</title>
   <meta name="robots" content="noindex, nofollow">
   <style>
     body {
+      margin: 0;
+      padding: 0;
+      background-color: #2f3542;
+      color: white;
       font-family: sans-serif;
       text-align: center;
-      background-color: #f4f6f8;
-      padding: 20px;
+      overflow: hidden; /* スクロール防止 */
+      touch-action: none;
     }
-    .card {
-      background: white;
-      max-width: 450px;
-      margin: 0 auto;
-      padding: 25px;
+    header {
+      padding: 10px;
+      background: #1e222d;
+    }
+    h1 { font-size: 18px; margin: 0; }
+    p { font-size: 12px; margin: 5px 0 0; color: #a4b0be; }
+
+    /* ステージ */
+    #stage {
+      position: relative;
+      width: 320px;
+      height: 400px;
+      background-color: #57606f;
+      margin: 20px auto;
       border-radius: 16px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      border: 4px solid #ffa502;
+      overflow: hidden;
     }
-    .status-box {
-      margin: 20px 0;
-      padding: 15px;
-      background: #eccc68;
-      border-radius: 8px;
-      font-weight: bold;
+
+    /* ボール */
+    #ball {
+      position: absolute;
+      width: 30px;
+      height: 30px;
+      background: radial-gradient(circle at 10px 10px, #ff4757, #2ed573);
+      border-radius: 50%;
+      box-shadow: 2px 2px 5px rgba(0,0,0,0.4);
+      top: 0;
+      left: 0;
     }
-    button {
-      padding: 12px 24px;
-      font-size: 16px;
+
+    /* ゴール */
+    #goal {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      background-color: #ffa502;
+      border: 3px dashed #fff;
+      border-radius: 50%;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       font-weight: bold;
+      font-size: 12px;
+    }
+
+    /* iPhone用 許可ボタン */
+    #perm-btn {
+      padding: 10px 20px;
+      background: #2ed573;
+      color: white;
       border: none;
       border-radius: 8px;
-      cursor: pointer;
-      margin: 5px;
-    }
-    .btn-listen { background: #2ed573; color: white; }
-    .btn-send { background: #ff4757; color: white; }
-    
-    /* 証明書のデザイン */
-    #certificate {
-      display: none;
-      margin-top: 25px;
-      padding: 25px;
-      background: #fff;
-      border: 4px double #ffa502;
-      border-radius: 12px;
-      box-shadow: 0 0 10px rgba(255, 165, 2, 0.3);
-    }
-    .cert-title {
-      font-size: 20px;
-      color: #ff6b81;
       font-weight: bold;
-      margin-bottom: 10px;
-    }
-    .cert-store {
-      font-size: 24px;
-      font-weight: bold;
-      color: #2f3542;
-      margin: 15px 0;
-    }
-    .cert-date {
-      font-size: 16px;
-      color: #57606f;
+      font-size: 14px;
+      margin-top: 10px;
+      display: none; /* 初期状態は非表示 */
     }
   </style>
 </head>
 <body>
 
-<div class="card">
-  <h2>📡 超音波入店チェックイン</h2>
-  
-  <p>「受信スタート」を押して、超音波の合図を待ちます。</p>
-  
-  <button class="btn-listen" id="start-btn">マイクで受信スタート</button>
-  <button class="btn-send" id="send-btn">【テスト用】超音波を発信</button>
+<header>
+  <h1>📱 スマホを傾けてゴールを目指せ！</h1>
+  <p>TongStore 玉転がしチャレンジ</p>
+</header>
 
-  <div class="status-box" id="status">待機中（マイクOFF）</div>
+<button id="perm-btn">センサーの使用を許可する</button>
 
-  <!-- 発行される証明書 -->
-  <div id="certificate">
-    <div class="cert-title">✨ WELCOME ✨</div>
-    <div class="cert-store">TongStore AICHI<br>入店証明書</div>
-    <hr style="border: 0.5px solid #eee;">
-    <p>ご来店ありがとうございます！</p>
-    <div class="cert-date" id="visit-date">入店日時: --</div>
-  </div>
+<div id="stage">
+  <div id="goal">GOAL</div>
+  <div id="ball"></div>
 </div>
 
+<p id="info">スマホを傾けてみよう！</p>
+
 <script>
-  let audioCtx = null;
-  let analyser = null;
-  let isListening = false;
-  const TARGET_FREQ = 18000; // チェックイン用周波数 (18kHz)
+  const stage = document.getElementById('stage');
+  const ball = document.getElementById('ball');
+  const goal = document.getElementById('goal');
+  const info = document.getElementById('info');
+  const permBtn = document.getElementById('perm-btn');
 
-  const startBtn = document.getElementById('start-btn');
-  const sendBtn = document.getElementById('send-btn');
-  const statusEl = document.getElementById('status');
-  const certEl = document.getElementById('certificate');
-  const dateEl = document.getElementById('visit-date');
+  // ステージのサイズとボールの初期位置
+  const stageWidth = 320;
+  const stageHeight = 400;
+  const ballSize = 30;
 
-  // 音声処理の準備
-  function initAudio() {
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
+  let x = 20; // 初期位置 X
+  let y = 20; // 初期位置 Y
+  let vx = 0; // 速度 X
+  let vy = 0; // 速度 Y
+
+  // iPhone(iOS 13以降)ではセンサーの許可ダイアログが必要
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    permBtn.style.display = 'inline-block';
+    permBtn.addEventListener('click', () => {
+      DeviceOrientationEvent.requestPermission().then(state => {
+        if (state === 'granted') {
+          permBtn.style.display = 'none';
+          window.addEventListener('deviceorientation', handleOrientation);
+        } else {
+          alert('センサーの許可が得られませんでした。');
+        }
+      });
+    });
+  } else {
+    // AndroidやiOSの古いバージョン
+    window.addEventListener('deviceorientation', handleOrientation);
   }
 
-  // 1. 超音波を受信する処理（マイクで18kHzを監視）
-  startBtn.addEventListener('click', async () => {
-    initAudio();
-    if (audioCtx.state === 'suspended') await audioCtx.resume();
+  // 傾き検知処理
+  function handleOrientation(event) {
+    // gamma: 左右の傾き (-90 〜 90)
+    // beta: 前後の傾き (-180 〜 180)
+    const gamma = event.gamma || 0;
+    const beta = event.beta || 0;
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const source = audioCtx.createMediaStreamSource(stream);
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048;
-      source.connect(analyser);
+    // 傾きを速度に変換（少しマイルドにするために0.1を掛ける）
+    vx += gamma * 0.05;
+    vy += beta * 0.05;
 
-      isListening = true;
-      statusEl.textContent = "📡 超音波（18kHz）を待機中...";
-      statusEl.style.background = "#70a1ff";
-      statusEl.style.color = "white";
-      startBtn.disabled = true;
-
-      checkSignal();
-    } catch (err) {
-      alert("マイクの使用許可が必要です。");
-    }
-  });
-
-  function checkSignal() {
-    if (!isListening) return;
-
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-    analyser.getByteFrequencyData(dataArray);
-
-    // 18kHz付近の音の強さを判定
-    const index = Math.round(TARGET_FREQ / (audioCtx.sampleRate / analyser.fftSize));
-    const volume = dataArray[index];
-
-    // 周波数の音を検知したら証明書を発行（閾値: 100以上）
-    if (volume > 100) {
-      issueCertificate();
-      return; // 1回検知したら停止
-    }
-
-    requestAnimationFrame(checkSignal);
+    info.textContent = `左右: ${Math.round(gamma)}° | 前後: ${Math.round(beta)}°`;
   }
 
-  // 2. 入店証明書を発行する
-  function issueCertificate() {
-    isListening = false;
-    statusEl.textContent = "🎉 超音波を受信しました！";
-    statusEl.style.background = "#2ed573";
+  // アニメーションループ（約1秒間に60回実行）
+  function update() {
+    // 摩擦（だんだん減速させる）
+    vx *= 0.95;
+    vy *= 0.95;
 
-    // 現在の日時を取得
-    const now = new Date();
-    const dateString = now.getFullYear() + "年" 
-      + (now.getMonth() + 1) + "月" 
-      + now.getDate() + "日 " 
-      + String(now.getHours()).padStart(2, '0') + ":" 
-      + String(now.getMinutes()).padStart(2, '0') + ":" 
-      + String(now.getSeconds()).padStart(2, '0');
+    // 位置の更新
+    x += vx;
+    y += vy;
 
-    dateEl.textContent = "入店日時: " + dateString;
-    certEl.style.display = "block"; // 証明書を表示
+    // 壁との当たり判定（はみ出さないように）
+    if (x < 0) { x = 0; vx *= -0.5; }
+    if (x > stageWidth - ballSize) { x = stageWidth - ballSize; vx *= -0.5; }
+    if (y < 0) { y = 0; vy *= -0.5; }
+    if (y > stageHeight - ballSize) { y = stageHeight - ballSize; vy *= -0.5; }
+
+    // ボールの位置を画面に反映
+    ball.style.left = x + 'px';
+    ball.style.top = y + 'px';
+
+    // ゴール判定
+    const goalX = stageWidth - 70;
+    const goalY = stageHeight - 70;
+    if (x > goalX && y > goalY) {
+      info.textContent = "🎉 CLEAR! ゴールおめでとう！";
+      info.style.color = "#ffa502";
+      info.style.fontWeight = "bold";
+    }
+
+    requestAnimationFrame(update);
   }
 
-  // 3. テスト用に同じ画面から18kHzの音を鳴らす処理
-  sendBtn.addEventListener('click', () => {
-    initAudio();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-
-    osc.type = 'sine';
-    osc.frequency.value = TARGET_FREQ; // 18kHz
-    gain.gain.value = 0.5;
-
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    osc.start();
-    // 0.5秒だけ鳴らして止める
-    setTimeout(() => {
-      osc.stop();
-    }, 500);
-  });
+  // ゲームの動きをスタート
+  update();
 </script>
 
 </body>
