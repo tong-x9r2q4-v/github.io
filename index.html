@@ -3,122 +3,193 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>颯太が天才だと思ったら連打するボタン</title>
+  <title>TongStore AICHI 入店システム</title>
   <meta name="robots" content="noindex, nofollow">
   <style>
     body {
       font-family: sans-serif;
       text-align: center;
-      background-color: #f0f4f8;
+      background-color: #f4f6f8;
       padding: 20px;
     }
     .card {
       background: white;
-      max-width: 400px;
+      max-width: 450px;
       margin: 0 auto;
-      padding: 30px;
-      border-radius: 15px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      padding: 25px;
+      border-radius: 16px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
-    .stat {
+    .status-box {
+      margin: 20px 0;
+      padding: 15px;
+      background: #eccc68;
+      border-radius: 8px;
+      font-weight: bold;
+    }
+    button {
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    .btn-listen { background: #2ed573; color: white; }
+    .btn-send { background: #ff4757; color: white; }
+    
+    /* 証明書のデザイン */
+    #certificate {
+      display: none;
+      margin-top: 25px;
+      padding: 25px;
+      background: #fff;
+      border: 4px double #ffa502;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(255, 165, 2, 0.3);
+    }
+    .cert-title {
+      font-size: 20px;
+      color: #ff6b81;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .cert-store {
       font-size: 24px;
+      font-weight: bold;
+      color: #2f3542;
       margin: 15px 0;
     }
-    .count {
-      font-size: 48px;
-      font-weight: bold;
-      color: #ff4757;
-    }
-    #tap-btn {
-      width: 200px;
-      height: 200px;
-      border-radius: 50%;
-      font-size: 28px;
-      font-weight: bold;
-      color: white;
-      background-color: #2ed573;
-      border: none;
-      cursor: pointer;
-      box-shadow: 0 6px 0 #26af5f;
-      transition: transform 0.05s;
-      user-select: none;
-    }
-    #tap-btn:active {
-      transform: translateY(4px);
-      box-shadow: 0 2px 0 #26af5f;
-    }
-    #tap-btn:disabled {
-      background-color: #ccc;
-      box-shadow: none;
-      cursor: not-allowed;
+    .cert-date {
+      font-size: 16px;
+      color: #57606f;
     }
   </style>
 </head>
 <body>
 
 <div class="card">
-  <h1>🔥 10秒そうた天才連打測定 🔥</h1>
-  <div class="stat">残り時間: <span id="time">10.0</span> 秒</div>
-  <div class="stat">回数: <span id="score" class="count">0</span></div>
+  <h2>📡 超音波入店チェックイン</h2>
   
-  <br>
-  <button id="tap-btn">スタート！</button>
-  <br><br>
+  <p>「受信スタート」を押して、超音波の合図を待ちます。</p>
+  
+  <button class="btn-listen" id="start-btn">マイクで受信スタート</button>
+  <button class="btn-send" id="send-btn">【テスト用】超音波を発信</button>
 
-  <h2 id="result"></h2>
+  <div class="status-box" id="status">待機中（マイクOFF）</div>
+
+  <!-- 発行される証明書 -->
+  <div id="certificate">
+    <div class="cert-title">✨ WELCOME ✨</div>
+    <div class="cert-store">TongStore AICHI<br>入店証明書</div>
+    <hr style="border: 0.5px solid #eee;">
+    <p>ご来店ありがとうございます！</p>
+    <div class="cert-date" id="visit-date">入店日時: --</div>
+  </div>
 </div>
 
 <script>
-  let count = 0;
-  let timeLeft = 10.0;
-  let timer = null;
-  let isPlaying = false;
+  let audioCtx = null;
+  let analyser = null;
+  let isListening = false;
+  const TARGET_FREQ = 18000; // チェックイン用周波数 (18kHz)
 
-  const btn = document.getElementById('tap-btn');
-  const scoreDisplay = document.getElementById('score');
-  const timeDisplay = document.getElementById('time');
-  const resultDisplay = document.getElementById('result');
+  const startBtn = document.getElementById('start-btn');
+  const sendBtn = document.getElementById('send-btn');
+  const statusEl = document.getElementById('status');
+  const certEl = document.getElementById('certificate');
+  const dateEl = document.getElementById('visit-date');
 
-  btn.addEventListener('click', () => {
-    // 最初の1クリックでタイマースタート
-    if (!isPlaying && timeLeft === 10.0) {
-      isPlaying = true;
-      btn.textContent = '連打！！';
-      btn.style.backgroundColor = '#ff4757';
-      
-      timer = setInterval(() => {
-        timeLeft -= 0.1;
-        timeDisplay.textContent = timeLeft.toFixed(1);
-
-        if (timeLeft <= 0) {
-          clearInterval(timer);
-          endGame();
-        }
-      }, 100);
+  // 音声処理の準備
+  function initAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
+  }
 
-    if (isPlaying) {
-      count++;
-      scoreDisplay.textContent = count;
+  // 1. 超音波を受信する処理（マイクで18kHzを監視）
+  startBtn.addEventListener('click', async () => {
+    initAudio();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const source = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+
+      isListening = true;
+      statusEl.textContent = "📡 超音波（18kHz）を待機中...";
+      statusEl.style.background = "#70a1ff";
+      statusEl.style.color = "white";
+      startBtn.disabled = true;
+
+      checkSignal();
+    } catch (err) {
+      alert("マイクの使用許可が必要です。");
     }
   });
 
-  function endGame() {
-    isPlaying = false;
-    btn.disabled = true;
-    btn.textContent = '終了！';
-    timeDisplay.textContent = '0.0';
+  function checkSignal() {
+    if (!isListening) return;
 
-    const cps = (count / 10).toFixed(1); // 1秒あたりの回数
-    let rank = '';
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    analyser.getByteFrequencyData(dataArray);
 
-    if (count >= 80) rank = '⚡ 神の領域！';
-    else if (count >= 60) rank = '🔥 連打の達人！';
-    else if (count >= 40) rank = '👍 かなり速い！';
-    else rank = '🐢 のんびりペース';
+    // 18kHz付近の音の強さを判定
+    const index = Math.round(TARGET_FREQ / (audioCtx.sampleRate / analyser.fftSize));
+    const volume = dataArray[index];
 
-    resultDisplay.innerHTML = `結果: ${count} 回！<br>(秒間 ${cps} 回)<br>${rank}`;
+    // 周波数の音を検知したら証明書を発行（閾値: 100以上）
+    if (volume > 100) {
+      issueCertificate();
+      return; // 1回検知したら停止
+    }
+
+    requestAnimationFrame(checkSignal);
   }
+
+  // 2. 入店証明書を発行する
+  function issueCertificate() {
+    isListening = false;
+    statusEl.textContent = "🎉 超音波を受信しました！";
+    statusEl.style.background = "#2ed573";
+
+    // 現在の日時を取得
+    const now = new Date();
+    const dateString = now.getFullYear() + "年" 
+      + (now.getMonth() + 1) + "月" 
+      + now.getDate() + "日 " 
+      + String(now.getHours()).padStart(2, '0') + ":" 
+      + String(now.getMinutes()).padStart(2, '0') + ":" 
+      + String(now.getSeconds()).padStart(2, '0');
+
+    dateEl.textContent = "入店日時: " + dateString;
+    certEl.style.display = "block"; // 証明書を表示
+  }
+
+  // 3. テスト用に同じ画面から18kHzの音を鳴らす処理
+  sendBtn.addEventListener('click', () => {
+    initAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.value = TARGET_FREQ; // 18kHz
+    gain.gain.value = 0.5;
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start();
+    // 0.5秒だけ鳴らして止める
+    setTimeout(() => {
+      osc.stop();
+    }, 500);
+  });
 </script>
 
 </body>
