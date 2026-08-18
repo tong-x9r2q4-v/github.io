@@ -2,243 +2,180 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>TongStore 傾き玉転がしアドベンチャー</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>オンライン連打対戦 | TongStore</title>
   <style>
-    /* 全体のスタイル */
     body {
-      margin: 0; padding: 0;
-      font-family: 'Helvetica Neue', sans-serif;
-      text-align: center;
-      overflow: hidden; /* スクロール防止 */
-      touch-action: none;
-      user-select: none;
+      font-family: sans-serif;
+      background-color: #1e272e;
       color: white;
+      text-align: center;
+      padding: 20px;
+      margin: 0;
     }
-
-    /* ヘッダーとUI */
-    header {
-      padding: 10px;
-      position: absolute; width: 100%; top: 0;
-      background: rgba(0,0,0,0.5);
-      box-sizing: border-box; z-index: 100;
+    .container {
+      max-width: 400px;
+      margin: 0 auto;
+      background: #2f3640;
+      padding: 20px;
+      border-radius: 12px;
     }
-    h1 { font-size: 16px; margin: 0; }
-    #info { font-size: 12px; margin-top: 5px; color: #eee; height: 1.5em; }
-
-    /* コース切り替えUI */
-    #course-selector {
-      position: absolute; bottom: 20px; left: 0; width: 100%;
-      text-align: center; z-index: 100;
+    input {
+      padding: 10px; font-size: 16px; width: 60%;
+      border-radius: 6px; border: none; text-align: center;
     }
-    .btn-course {
-      padding: 8px 16px; margin: 5px; font-weight: bold;
-      border: 2px solid white; border-radius: 20px; cursor: pointer;
+    button {
+      padding: 10px 20px; font-size: 16px; font-weight: bold;
+      border: none; border-radius: 6px; cursor: pointer; margin: 5px;
     }
-
-    /* iPhone用 許可ボタン */
-    #perm-btn {
-      padding: 12px 24px; background: #2ed573;
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      border: none; border-radius: 8px; z-index: 200; display: none;
+    .btn-action { background: #00a8ff; color: white; }
+    .btn-tap {
+      background: #e1b12c; color: #2f3640;
+      width: 100%; height: 120px; font-size: 28px;
+      margin-top: 20px; border-radius: 12px;
     }
-
-    /* ゲーム画面 */
-    #game-canvas { display: block; }
+    .btn-tap:active { transform: scale(0.98); }
+    .score-board {
+      display: flex; justify-content: space-around;
+      margin: 20px 0; background: #353b48; padding: 15px; border-radius: 8px;
+    }
+    .score-num { font-size: 32px; font-weight: bold; color: #4cd137; }
+    #status { color: #fbc531; font-weight: bold; margin: 15px 0; }
   </style>
 </head>
 <body>
 
-<header>
-  <h1>TongStore 傾き玉転がしアドベンチャー</h1>
-  <p id="info">「センサーの許可」をして開始</p>
-</header>
+<div class="container">
+  <h2>⚔️ オンライン連打対戦 ⚔️</h2>
+  <div id="status">対戦相手を待っています...</div>
 
-<button id="perm-btn">1. センサーの許可をする</button>
+  <!-- 接続設定エリア -->
+  <div id="setup-area">
+    <p>同じ「あいことば」を入力して接続！</p>
+    <input type="text" id="room-input" placeholder="例: tong123" value="tong123">
+    <br><br>
+    <button class="btn-action" id="host-btn">部屋を作る（1人目）</button>
+    <button class="btn-action" id="join-btn" style="background:#4bcffa;">部屋に入る（2人目）</button>
+  </div>
 
-<!-- Matter.jsの描画キャンバス -->
-<canvas id="game-canvas"></canvas>
-
-<!-- コース切り替えボタン -->
-<div id="course-selector">
-  <button class="btn-course" style="background:#2ed573" onclick="loadCourse('forest')">1. はじまりの森</button>
-  <button class="btn-course" style="background:#70a1ff" onclick="loadCourse('ice')">2. アイス・キャッスル</button>
-  <button class="btn-course" style="background:#ff4757" onclick="loadCourse('lava')">3. 溶岩洞窟</button>
+  <!-- 対戦エリア（最初は非表示） -->
+  <div id="game-area" style="display: none;">
+    <div class="score-board">
+      <div>あなた<div class="score-num" id="my-score">0</div></div>
+      <div>あいて<div class="score-num" id="peer-score" style="color:#e84118">0</div></div>
+    </div>
+    <button class="btn-tap" id="tap-btn" disabled>連打！連打！</button>
+  </div>
 </div>
 
-<!-- 物理エンジン Matter.js (軽量版) を読み込み -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<!-- PeerJSライブラリの読み込み -->
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
 <script>
-  // --- 基本設定 ---
-  const { Engine, Render, Runner, World, Bodies, Events } = Matter;
-  const canvas = document.getElementById('game-canvas');
-  const infoEl = document.getElementById('info');
-  const permBtn = document.getElementById('perm-btn');
+  let peer = null;
+  let conn = null;
+  let myScore = 0;
+  let peerScore = 0;
+  const TARGET_SCORE = 30; // 30回連打したら勝利
 
-  // スマートフォンの画面サイズを取得
-  const W = window.innerWidth;
-  const H = window.innerHeight;
+  const statusEl = document.getElementById('status');
+  const setupArea = document.getElementById('setup-area');
+  const gameArea = document.getElementById('game-area');
+  const myScoreEl = document.getElementById('my-score');
+  const peerScoreEl = document.getElementById('peer-score');
+  const tapBtn = document.getElementById('tap-btn');
 
-  // 物理エンジンの初期化
-  const engine = Engine.create();
-  engine.world.gravity.y = 0; // 初期グラビティはゼロ（傾きで制御）
+  // 1. 部屋を作る（ホスト側）
+  document.getElementById('host-btn').addEventListener('click', () => {
+    const roomId = document.getElementById('room-input').value;
+    if (!roomId) return alert("あいことばを入力してください");
 
-  // レンダラー（描画機能）の設定
-  const render = Render.create({
-    canvas: canvas,
-    engine: engine,
-    options: {
-      width: W, height: H,
-      background: 'transparent', // CSSで背景を設定
-      wireframes: false, // ワイヤーフレームをオフにして色を付ける
-      showAngleIndicator: false
-    }
+    // 入力した合言葉をIDにして通信を開始
+    peer = new Peer(roomId);
+
+    peer.on('open', (id) => {
+      statusEl.textContent = `部屋を作成しました！相手の接続を待っています... (ID: ${id})`;
+      setupArea.style.display = 'none';
+      gameArea.style.display = 'block';
+    });
+
+    // 相手が接続してきたとき
+    peer.on('connection', (c) => {
+      conn = c;
+      setupConnection();
+    });
+
+    peer.on('error', (err) => {
+      alert("このあいことばは既に使用されているか、エラーが発生しました。");
+    });
   });
 
-  Render.run(render);
-  Runner.run(Runner.create(), engine);
+  // 2. 部屋に入る（ゲスト側）
+  document.getElementById('join-btn').addEventListener('click', () => {
+    const roomId = document.getElementById('room-input').value;
+    if (!roomId) return alert("あいことばを入力してください");
 
-  // --- ゲーム要素（ボール、ゴール、壁） ---
-  let ball, goal, walls = [], obstacles = [];
-  const BALL_SIZE = 15; // 半径
-  const GOAL_SIZE = 30; // 半径
+    peer = new Peer(); // ランダムIDで開始
 
-  // --- コースデータと物理設定 ---
-  const courses = {
-    forest: {
-      bg: '#57606f', // 森の土
-      ball: '#ff4757', goal: '#ffa502', wall: '#2ed573', obs: '#7bed9f',
-      friction: 0.1, // 普通の摩擦
-      name: 'はじまりの森',
-      info: '木々を避けて進もう',
-      obstacles: [[W*0.2, H*0.3, 30], [W*0.8, H*0.4, 40], [W*0.5, H*0.6, 25], [W*0.3, H*0.7, 35]]
-    },
-    ice: {
-      bg: '#74b9ff', // アイスブルー
-      ball: '#fff', goal: '#ffa502', wall: '#fff', obs: '#a4b0be',
-      friction: 0.0, // ★氷の上は摩擦ゼロ！滑る
-      name: 'アイス・キャッスル',
-      info: '滑る！氷の結晶に注意',
-      obstacles: [[W*0.3, H*0.2, 20], [W*0.7, H*0.3, 20], [W*0.1, H*0.5, 30], [W*0.9, H*0.6, 25], [W*0.4, H*0.8, 30]]
-    },
-    lava: {
-      bg: '#2f3542', // 暗い岩
-      ball: '#ffa502', goal: '#2ed573', wall: '#ff4757', obs: '#eccc68',
-      friction: 0.2, // 溶岩で少し粘る
-      name: '溶岩洞窟',
-      info: '危険！溶岩の罠に落ちるな',
-      obstacles: [[W*0.5, H*0.2, 50], [W*0.2, H*0.4, 60], [W*0.8, H*0.5, 40], [W*0.3, H*0.7, 40], [W*0.7, H*0.8, 50]]
-    }
-  };
+    peer.on('open', () => {
+      // 指定した合言葉の部屋に接続申請
+      conn = peer.connect(roomId);
+      setupConnection();
+      setupArea.style.display = 'none';
+      gameArea.style.display = 'block';
+    });
+  });
 
-  let currentFriction = 0.1; // 現在の摩擦
-
-  // --- コース読み込み処理 ---
-  function loadCourse(courseId) {
-    // 古いオブジェクトをワールドから削除
-    World.clear(engine.world);
-    
-    const c = courses[courseId];
-    canvas.style.backgroundColor = c.bg; // 背景色を設定
-    infoEl.textContent = `${c.name} - ${c.info}`;
-    currentFriction = c.friction;
-
-    // ボールの作成 (少し上からスタート)
-    ball = Bodies.circle(W * 0.1, H * 0.2, BALL_SIZE, {
-      render: { fillStyle: c.ball },
-      frictionAir: 0.01, // 空気抵抗
-      friction: c.friction, // 地面との摩擦（コースごとに変える）
-      label: 'ball'
+  // 3. 通信が繋がったあとの処理
+  function setupConnection() {
+    conn.on('open', () => {
+      statusEl.textContent = "対戦相手が接続しました！対戦スタート！";
+      tapBtn.disabled = false; // ボタンを押せるようにする
     });
 
-    // ゴールの作成 (右下)
-    goal = Bodies.circle(W * 0.85, H * 0.85, GOAL_SIZE, {
-      isStatic: true, // 動かない
-      render: { fillStyle: c.goal, strokeStyle: '#fff', lineWidth: 3 },
-      isSensor: true, // 衝突せず検知だけする
-      label: 'goal'
-    });
-
-    // 外壁の作成 (画面からはみ出さないように)
-    walls = [
-      Bodies.rectangle(W/2, 0, W, 20, { isStatic: true, render: { fillStyle: c.wall } }), // 上
-      Bodies.rectangle(W/2, H, W, 20, { isStatic: true, render: { fillStyle: c.wall } }), // 下
-      Bodies.rectangle(0, H/2, 20, H, { isStatic: true, render: { fillStyle: c.wall } }), // 左
-      Bodies.rectangle(W, H/2, 20, H, { isStatic: true, render: { fillStyle: c.wall } })  // 右
-    ];
-
-    // 障害物の作成 (コースごとのデータから)
-    obstacles = c.obstacles.map(data => {
-      // 溶岩洞窟の障害物は四角くする
-      if (courseId === 'lava') {
-        return Bodies.rectangle(data[0], data[1], data[2]*2, data[2], { isStatic: true, render: { fillStyle: c.obs }, friction: currentFriction });
+    // 相手からデータが送られてきたとき（リアルタイム受信）
+    conn.on('data', (data) => {
+      if (data.type === 'tap') {
+        peerScore = data.score;
+        peerScoreEl.textContent = peerScore;
+        checkWin();
       }
-      return Bodies.circle(data[0], data[1], data[2], { isStatic: true, render: { fillStyle: c.obs }, friction: currentFriction });
     });
 
-    // すべてを物理ワールドに追加
-    World.add(engine.world, [ball, goal, ...walls, ...obstacles]);
-  }
-
-  // 初期コース読み込み（はじまりの森）
-  loadCourse('forest');
-
-  // --- 傾きセンサーの処理 ---
-  // iOS 13+ では許可ダイアログが必要
-  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    permBtn.style.display = 'block';
-    permBtn.addEventListener('click', () => {
-      DeviceOrientationEvent.requestPermission().then(state => {
-        if (state === 'granted') {
-          permBtn.style.display = 'none';
-          infoEl.textContent = "センサー許可完了。スマホを傾けて！";
-          window.addEventListener('deviceorientation', handleOrientation);
-        } else {
-          alert('センサーの許可が得られませんでした。');
-        }
-      });
+    conn.on('close', () => {
+      statusEl.textContent = "相手との接続が切れました。";
+      tapBtn.disabled = true;
     });
-  } else {
-    // AndroidやiOSの古いバージョン、PC（動かないがイベントだけ登録）
-    window.addEventListener('deviceorientation', handleOrientation);
-    if(window.DeviceOrientationEvent) infoEl.textContent = "スマホを傾けて遊んでね！";
   }
 
-  function handleOrientation(event) {
-    // gamma: 左右の傾き (-90 〜 90) -> Xグラビティ
-    // beta: 前後の傾き (-180 〜 180) -> Yグラビティ
-    const gx = event.gamma || 0;
-    const gy = event.beta || 0;
+  // 4. 連打ボタンを押したときの処理
+  tapBtn.addEventListener('click', () => {
+    if (!conn) return;
 
-    // 物理エンジンのグラビティ（重力）を傾きに同期させる
-    // (少しマイルドにするために0.015を掛ける。アイスステージは滑るのでさらに0.5倍)
-    const factor = currentFriction === 0 ? 0.007 : 0.015;
-    engine.world.gravity.x = gx * factor;
-    engine.world.gravity.y = (gy - 40) * factor; // 40度くらい傾けた状態をフラットにする
+    myScore++;
+    myScoreEl.textContent = myScore;
 
-    // infoEl.textContent = `X: ${Math.round(gx)}° | Y: ${Math.round(gy)}°`;
-  }
+    // 自分のスコアを相手に送信（リアルタイム送信！）
+    conn.send({
+      type: 'tap',
+      score: myScore
+    });
 
-  // --- 当たり判定（ゴール到達、溶岩トラップ） ---
-  Events.on(engine, 'collisionStart', (event) => {
-    const pairs = event.pairs;
-    for (let i = 0; i < pairs.length; i++) {
-      const pair = pairs[i];
-      // ボールがゴールに触れた
-      if ((pair.bodyA.label === 'ball' && pair.bodyB.label === 'goal') || 
-          (pair.bodyA.label === 'goal' && pair.bodyB.label === 'ball')) {
-        infoEl.textContent = `🎉 ゴールおめでとう！お宝GET！`;
-        infoEl.style.color = "#ffa502"; infoEl.style.fontWeight = "bold";
-      }
+    checkWin();
+  });
+
+  // 5. 勝敗判定
+  function checkWin() {
+    if (myScore >= TARGET_SCORE) {
+      statusEl.textContent = "🎉 あなたの勝利！おめでとう！";
+      statusEl.style.color = "#4cd137";
+      tapBtn.disabled = true;
+    } else if (peerScore >= TARGET_SCORE) {
+      statusEl.textContent = "💀 あなたの負け…！";
+      statusEl.style.color = "#e84118";
+      tapBtn.disabled = true;
     }
-  });
-
-  // 画面リサイズへの対応
-  window.addEventListener('resize', () => {
-    location.reload(); // リサイズされたらページをリロードして再描画
-  });
-
+  }
 </script>
 
 </body>
