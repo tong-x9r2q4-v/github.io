@@ -3,122 +3,232 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>オンライン連打対戦 | TongStore</title>
+  <title>オンライン早押しクイズ対戦</title>
   <style>
     body {
-      font-family: sans-serif;
-      background-color: #1e272e;
-      color: white;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      background-color: #1a1a2e;
+      color: #fff;
       text-align: center;
-      padding: 20px;
       margin: 0;
+      padding: 20px;
     }
     .container {
-      max-width: 400px;
+      max-width: 500px;
       margin: 0 auto;
-      background: #2f3640;
-      padding: 20px;
-      border-radius: 12px;
+      background: #16213e;
+      padding: 25px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+    h1 { margin-top: 0; color: #e94560; font-size: 24px; }
+    #status {
+      background: #0f3460;
+      padding: 12px;
+      border-radius: 8px;
+      margin: 15px 0;
+      font-weight: bold;
+      color: #f1c40f;
     }
     input {
-      padding: 10px; font-size: 16px; width: 60%;
-      border-radius: 6px; border: none; text-align: center;
+      padding: 12px;
+      font-size: 16px;
+      width: 60%;
+      border-radius: 8px;
+      border: none;
+      text-align: center;
+      margin-bottom: 10px;
     }
     button {
-      padding: 10px 20px; font-size: 16px; font-weight: bold;
-      border: none; border-radius: 6px; cursor: pointer; margin: 5px;
+      padding: 12px 20px;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 5px;
+      transition: 0.2s;
     }
-    .btn-action { background: #00a8ff; color: white; }
-    .btn-tap {
-      background: #e1b12c; color: #2f3640;
-      width: 100%; height: 120px; font-size: 28px;
-      margin-top: 20px; border-radius: 12px;
-    }
-    .btn-tap:active { transform: scale(0.98); }
+    button:active { transform: scale(0.95); }
+    .btn-main { background: #e94560; color: white; }
+    .btn-sub { background: #00b4d8; color: white; }
+    
+    /* スコアボード */
     .score-board {
-      display: flex; justify-content: space-around;
-      margin: 20px 0; background: #353b48; padding: 15px; border-radius: 8px;
+      display: flex;
+      justify-content: space-around;
+      background: #0f3460;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
     }
-    .score-num { font-size: 32px; font-weight: bold; color: #4cd137; }
-    #status { color: #fbc531; font-weight: bold; margin: 15px 0; }
+    .score-val { font-size: 32px; font-weight: bold; color: #4eacc5; }
+
+    /* クイズエリア */
+    .quiz-box {
+      background: #0f3460;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+      text-align: left;
+    }
+    .quiz-title { font-size: 14px; color: #e94560; font-weight: bold; }
+    .quiz-text { font-size: 18px; margin: 10px 0; font-weight: bold; line-height: 1.4; }
+    
+    /* 早押しボタン */
+    .btn-push {
+      width: 100%;
+      height: 100px;
+      background: #e94560;
+      color: white;
+      font-size: 26px;
+      border-radius: 12px;
+      box-shadow: 0 6px 0 #900C3F;
+    }
+    .btn-push:disabled {
+      background: #555;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    /* 選択肢ボタン */
+    .option-btn {
+      width: 100%;
+      padding: 14px;
+      margin: 8px 0;
+      background: #e0e0e0;
+      color: #333;
+      font-size: 16px;
+      text-align: left;
+    }
+    .option-btn:hover { background: #fff; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h2>⚔️ オンライン連打対戦 ⚔️</h2>
+  <h1>⚡ 早押しクイズ ONLINE ⚡</h1>
   <div id="status">対戦相手を待っています...</div>
 
   <!-- 接続設定エリア -->
   <div id="setup-area">
-    <p>同じ「あいことば」を入力して接続！</p>
-    <input type="text" id="room-input" placeholder="例: tong123" value="tong123">
-    <br><br>
-    <button class="btn-action" id="host-btn">部屋を作る（1人目）</button>
-    <button class="btn-action" id="join-btn" style="background:#4bcffa;">部屋に入る（2人目）</button>
+    <p>あいことばを決めて接続しよう！</p>
+    <input type="text" id="room-input" placeholder="例: quiz123" value="quiz123">
+    <br>
+    <button class="btn-main" id="host-btn">部屋を作る（ホスト）</button>
+    <button class="btn-sub" id="join-btn">部屋に入る（ゲスト）</button>
   </div>
 
-  <!-- 対戦エリア（最初は非表示） -->
+  <!-- ゲームエリア -->
   <div id="game-area" style="display: none;">
     <div class="score-board">
-      <div>あなた<div class="score-num" id="my-score">0</div></div>
-      <div>あいて<div class="score-num" id="peer-score" style="color:#e84118">0</div></div>
+      <div>あなた<div class="score-val" id="my-score">0</div></div>
+      <div>あいて<div class="score-val" id="peer-score" style="color:#e94560">0</div></div>
     </div>
-    <button class="btn-tap" id="tap-btn" disabled>連打！連打！</button>
+
+    <!-- クイズ表示部 -->
+    <div class="quiz-box">
+      <div class="quiz-title" id="quiz-num">第 1 問</div>
+      <div class="quiz-text" id="quiz-q">接続中...</div>
+    </div>
+
+    <!-- 早押しボタン -->
+    <div id="push-area">
+      <button class="btn-push" id="push-btn" disabled>早押し！</button>
+    </div>
+
+    <!-- 解答選択肢エリア（早押し成功時に表示） -->
+    <div id="options-area" style="display: none;">
+      <p style="color:#f1c40f; font-weight:bold;">解答を選択してください！</p>
+      <div id="options-container"></div>
+    </div>
   </div>
 </div>
 
-<!-- PeerJSライブラリの読み込み -->
+<!-- PeerJS ライブラリの読み込み -->
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
 <script>
+  // 30問のクイズデータ
+  const quizData = [
+    { q: "日本の都道府県で、2番目に面積が広いのはどこ？", options: ["岩手県", "福島県", "長野県"], ans: 0 },
+    { q: "世界で一番高い山「エベレスト」がある山脈の名前は？", options: ["アルプス山脈", "ヒマラヤ山脈", "アンデス山脈"], ans: 1 },
+    { q: "トランプのカードで、13の数字が書かれている札の絵柄は？", options: ["ナイト", "クイーン", "キング"], ans: 2 },
+    { q: "リンゴの切り口が茶色くなるのを防ぐのに効果的な液体は？", options: ["砂糖水", "食塩水", "炭酸水"], ans: 1 },
+    { q: "ラグビー（15人制）は1チーム何人？", options: ["13人", "15人", "18人"], ans: 1 },
+    { q: "オリンピックの五輪マークで使われていない色は？", options: ["緑", "黄", "紫"], ans: 2 },
+    { q: "太陽系の中で、太陽に一番近い惑星は？", options: ["水星", "金星", "火星"], ans: 0 },
+    { q: "大人の骨の数は、体全体で約何本？", options: ["約100本", "約200本", "約300本"], ans: 1 },
+    { q: "寿司の「シャリ」という言葉の元々の由来は？", options: ["白い砂", "仏教のお骨（仏舎利）", "研いだお米"], ans: 1 },
+    { q: "チェスの盤面（チェスボード）は全部で何マス？", options: ["64マス", "72マス", "81マス"], ans: 0 },
+    { q: "元素記号「O」が表す元素は？", options: ["水素", "酸素", "窒素"], ans: 1 },
+    { q: "慣用句で「めったに起きない非常に珍しいこと」を意味する言葉は？", options: ["晴天の霹靂", "千載一遇", "一期一会"], ans: 1 },
+    { q: "地球が太陽の周りを1周するのにかかる正確な時間は約何日？", options: ["365.25日", "365.50日", "365.75日"], ans: 0 },
+    { q: "標準的なピアノの鍵盤は、白鍵と黒鍵をあわせて全部で何鍵？", options: ["76鍵", "88鍵", "100鍵"], ans: 1 },
+    { q: "一般的に世界で一番長い川とされるアフリカの川は？", options: ["ナイル川", "コンゴ川", "ミシシッピ川"], ans: 0 },
+    { q: "日本で2番目に高い山は？", options: ["槍ヶ岳", "北岳", "奥穂高岳"], ans: 1 },
+    { q: "ブラジルの公用語は何語？", options: ["スペイン語", "ポルトガル語", "英語"], ans: 1 },
+    { q: "野菜の「キャベツ」と「レタス」、アブラナ科の植物はどっち？", options: ["キャベツ", "レタス", "どちらもアブラナ科"], ans: 0 },
+    { q: "アニメ『サザエさん』の主人公・サザエさんの弟の名前は？", options: ["カツオ", "タラオ", "ノリスケ"], ans: 0 },
+    { q: "「1グロス」は何個？", options: ["100個", "120個", "144個"], ans: 2 },
+    { q: "光の三原色（赤・緑・青）をすべて混ぜ合わせると何色になる？", options: ["黒", "白", "茶色"], ans: 1 },
+    { q: "ことわざ「二兎を追う者は〜」に続く言葉は？", options: ["一兎をも得ず", "足をすくわれる", "転びけり"], ans: 0 },
+    { q: "世界一大きな哺乳類はどれ？", options: ["アフリカゾウ", "シロナガスクジラ", "ダイオウイカ"], ans: 1 },
+    { q: "音の高さ（周波数）を表す単位「Hz」の読み方は？", options: ["ヘクトパスカル", "ヘルツ", "ジュール"], ans: 1 },
+    { q: "「春の七草」の中で、一般的に「ダイコン」を指す草は？", options: ["すずしろ", "すずな", "なずな"], ans: 0 },
+    { q: "日本初の硬貨として有名な、708年に作られたお金の名前は？", options: ["寛永通宝", "和同開珎", "天保通宝"], ans: 1 },
+    { q: "野球で「1試合を通して1人もランナーを出さずに勝利する」ことは？", options: ["完封勝利", "ノーヒットノーラン", "完全試合"], ans: 2 },
+    { q: "Web言語「HTML」の「M」は何の略？", options: ["Model", "Markup", "Master"], ans: 1 },
+    { q: "タコとイカ、足の数が多いのはどっち？", options: ["タコ", "イカ", "同じ"], ans: 1 },
+    { q: "「点滅」「点灯」の「点」という漢字の本来の意味は？", options: ["つける（火をつける）", "まばたきする", "しるしをつける"], ans: 0 }
+  ];
+
   let peer = null;
   let conn = null;
+  let isHost = false;
+  let currentQuizIndex = 0;
   let myScore = 0;
   let peerScore = 0;
-  const TARGET_SCORE = 30; // 30回連打したら勝利
+  let isAnswered = false; // その問題で誰かが早押ししたか
 
+  // UI要素
   const statusEl = document.getElementById('status');
   const setupArea = document.getElementById('setup-area');
   const gameArea = document.getElementById('game-area');
-  const myScoreEl = document.getElementById('my-score');
-  const peerScoreEl = document.getElementById('peer-score');
-  const tapBtn = document.getElementById('tap-btn');
+  const quizNumEl = document.getElementById('quiz-num');
+  const quizQEl = document.getElementById('quiz-q');
+  const pushBtn = document.getElementById('push-btn');
+  const pushArea = document.getElementById('push-area');
+  const optionsArea = document.getElementById('options-area');
+  const optionsContainer = document.getElementById('options-container');
 
-  // 1. 部屋を作る（ホスト側）
+  // ホスト（部屋を作る）
   document.getElementById('host-btn').addEventListener('click', () => {
     const roomId = document.getElementById('room-input').value;
     if (!roomId) return alert("あいことばを入力してください");
-
-    // 入力した合言葉をIDにして通信を開始
+    isHost = true;
     peer = new Peer(roomId);
 
-    peer.on('open', (id) => {
-      statusEl.textContent = `部屋を作成しました！相手の接続を待っています... (ID: ${id})`;
+    peer.on('open', id => {
+      statusEl.textContent = `部屋を作成しました。相手を待っています... (ID: ${id})`;
       setupArea.style.display = 'none';
       gameArea.style.display = 'block';
     });
 
-    // 相手が接続してきたとき
-    peer.on('connection', (c) => {
+    peer.on('connection', c => {
       conn = c;
       setupConnection();
     });
-
-    peer.on('error', (err) => {
-      alert("このあいことばは既に使用されているか、エラーが発生しました。");
-    });
   });
 
-  // 2. 部屋に入る（ゲスト側）
+  // ゲスト（部屋に入る）
   document.getElementById('join-btn').addEventListener('click', () => {
     const roomId = document.getElementById('room-input').value;
     if (!roomId) return alert("あいことばを入力してください");
-
-    peer = new Peer(); // ランダムIDで開始
+    isHost = false;
+    peer = new Peer();
 
     peer.on('open', () => {
-      // 指定した合言葉の部屋に接続申請
       conn = peer.connect(roomId);
       setupConnection();
       setupArea.style.display = 'none';
@@ -126,55 +236,134 @@
     });
   });
 
-  // 3. 通信が繋がったあとの処理
+  // 通信セットアップ
   function setupConnection() {
     conn.on('open', () => {
-      statusEl.textContent = "対戦相手が接続しました！対戦スタート！";
-      tapBtn.disabled = false; // ボタンを押せるようにする
-    });
-
-    // 相手からデータが送られてきたとき（リアルタイム受信）
-    conn.on('data', (data) => {
-      if (data.type === 'tap') {
-        peerScore = data.score;
-        peerScoreEl.textContent = peerScore;
-        checkWin();
+      statusEl.textContent = "対戦相手が接続しました！クイズスタート！";
+      if (isHost) {
+        // ホストが最初の出題をスタート
+        startNewQuestion(0);
       }
     });
 
-    conn.on('close', () => {
-      statusEl.textContent = "相手との接続が切れました。";
-      tapBtn.disabled = true;
+    conn.on('data', data => {
+      // 出題受信
+      if (data.type === 'next_quiz') {
+        renderQuiz(data.index);
+      }
+      // 相手が早押しボタンを押した
+      else if (data.type === 'pushed') {
+        isAnswered = true;
+        pushBtn.disabled = true;
+        statusEl.textContent = "相手が早押ししました！解答待ち...";
+      }
+      // 判定結果受信
+      else if (data.type === 'result') {
+        peerScore = data.peerScore;
+        myScore = data.myScore;
+        document.getElementById('my-score').textContent = myScore;
+        document.getElementById('peer-score').textContent = peerScore;
+        statusEl.textContent = data.msg;
+
+        // 次の問題へ（ホストが制御）
+        setTimeout(() => {
+          if (isHost) {
+            startNewQuestion(currentQuizIndex + 1);
+          }
+        }, 3000);
+      }
     });
   }
 
-  // 4. 連打ボタンを押したときの処理
-  tapBtn.addEventListener('click', () => {
-    if (!conn) return;
+  // 新しい問題の出題（ホストから送信）
+  function startNewQuestion(index) {
+    if (index >= quizData.length) {
+      // 終了判定
+      let winMsg = myScore > peerScore ? "🎉 あなたの勝ち！" : (myScore < peerScore ? "💀 あなたの負け..." : "🤝 引き分け！");
+      conn.send({ type: 'result', msg: "全問終了！ " + winMsg, myScore: peerScore, peerScore: myScore });
+      statusEl.textContent = "全問終了！ " + winMsg;
+      return;
+    }
+    currentQuizIndex = index;
+    conn.send({ type: 'next_quiz', index: index });
+    renderQuiz(index);
+  }
 
-    myScore++;
-    myScoreEl.textContent = myScore;
+  // 画面に問題を表示
+  function renderQuiz(index) {
+    currentQuizIndex = index;
+    isAnswered = false;
+    
+    quizNumEl.textContent = `第 ${index + 1} 問 / 全${quizData.length}問`;
+    quizQEl.textContent = quizData[index].q;
 
-    // 自分のスコアを相手に送信（リアルタイム送信！）
-    conn.send({
-      type: 'tap',
-      score: myScore
-    });
+    pushArea.style.display = 'block';
+    optionsArea.style.display = 'none';
+    pushBtn.disabled = false;
+    statusEl.textContent = "問題！早押しボタンを押してください！";
+  }
 
-    checkWin();
+  // 早押しボタンを押したとき
+  pushBtn.addEventListener('click', () => {
+    if (isAnswered) return;
+    isAnswered = true;
+    pushBtn.disabled = true;
+
+    // 相手に「自分が押した」ことを送信
+    conn.send({ type: 'pushed' });
+
+    statusEl.textContent = "あなたが押し勝ちました！答えを選んでください！";
+    showOptions();
   });
 
-  // 5. 勝敗判定
-  function checkWin() {
-    if (myScore >= TARGET_SCORE) {
-      statusEl.textContent = "🎉 あなたの勝利！おめでとう！";
-      statusEl.style.color = "#4cd137";
-      tapBtn.disabled = true;
-    } else if (peerScore >= TARGET_SCORE) {
-      statusEl.textContent = "💀 あなたの負け…！";
-      statusEl.style.color = "#e84118";
-      tapBtn.disabled = true;
+  // 選択肢の表示
+  function showOptions() {
+    pushArea.style.display = 'none';
+    optionsArea.style.display = 'block';
+    optionsContainer.innerHTML = "";
+
+    const quiz = quizData[currentQuizIndex];
+    quiz.options.forEach((opt, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'option-btn';
+      btn.textContent = `${idx + 1}. ${opt}`;
+      btn.onclick = () => selectAnswer(idx);
+      optionsContainer.appendChild(btn);
+    });
+  }
+
+  // 解答を選んだとき
+  function selectAnswer(selectedIndex) {
+    optionsArea.style.display = 'none';
+    const quiz = quizData[currentQuizIndex];
+
+    let msg = "";
+    if (selectedIndex === quiz.ans) {
+      myScore += 10;
+      msg = "⭕️ 正解！ (+10pt)";
+    } else {
+      myScore -= 5;
+      msg = "❌ 不正解... (-5pt)";
     }
+
+    document.getElementById('my-score').textContent = myScore;
+
+    // 結果を相手に通知（スコアは入れ替えて送信）
+    conn.send({
+      type: 'result',
+      msg: `相手の解答: ${msg}`,
+      myScore: peerScore,
+      peerScore: myScore
+    });
+
+    statusEl.textContent = msg + " 次の問題へ進みます...";
+
+    // ホストなら3秒後に次の問題へ
+    setTimeout(() => {
+      if (isHost) {
+        startNewQuestion(currentQuizIndex + 1);
+      }
+    }, 3000);
   }
 </script>
 
