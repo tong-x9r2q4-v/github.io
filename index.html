@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>あいうえお・布団サバイバル (TONGS)</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+        body {
+            background-color: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: sans-serif;
+            cursor: pointer;
+        }
+        #gameCanvas {
+            background-color: #fff;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+            touch-action: manipulation;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="gameCanvas" width="800" height="450"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// --- アセット読み込み (T, O, N, G, S) ---
+const imageSources = {
+    T: 'image_1.png',
+    O: 'image_3.png',
+    N: 'image_2.png',
+    G: 'image_5.png',
+    S: 'image_0.png'
+};
+
+const images = {};
+Object.keys(imageSources).forEach(key => {
+    const img = new Image();
+    img.src = imageSources[key];
+    images[key] = img;
+});
+
+// --- キャラクター定義 ---
+const charList = [
+    { key: 'T', x: 110, jumpY: 0, isJumping: false, jumpVelocity: 0, isCPU: true, voice: 'あ' },
+    { key: 'O', x: 240, jumpY: 0, isJumping: false, jumpVelocity: 0, isCPU: true, voice: 'い' },
+    { key: 'N', x: 370, jumpY: 0, isJumping: false, jumpVelocity: 0, isCPU: true, voice: 'う' },
+    { key: 'G', x: 500, jumpY: 0, isJumping: false, jumpVelocity: 0, isCPU: true, voice: 'え' },
+    { key: 'S', x: 630, jumpY: 0, isJumping: false, jumpVelocity: 0, isCPU: false, voice: 'お' }
+];
+
+let gameState = 'TITLE'; // 'TITLE', 'COUNTDOWN', 'PLAYING', 'GAMEOVER'
+let countdownNum = 3;
+let countdownTimer = null;
+
+let jumpCount = 0; // 成功したジャンプ回数
+let isAutoMode = false; // 自動操作モードフラグ
+
+const GRAVITY = 0.8;
+const JUMP_POWER = -13;
+
+let futonX = -100;
+let futonSpeed = 9.5;
+let futonActive = false;
+let futonPassed = false;
+
+// --- 音声再生（あ・い・う・え・お Web Speech API） ---
+function playVoice(text) {
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const uttr = new SpeechSynthesisUtterance(text);
+        uttr.lang = 'ja-JP';
+        uttr.pitch = 1.4;
+        uttr.rate = 1.6;
+        window.speechSynthesis.speak(uttr);
+    }
+}
+
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+// 衝突ミス音
+function playHitSound() {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.4);
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.4);
+}
+
+// クリア音（裏コマンド起動時）
+function playClearSound() {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+    notes.forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + i * 0.1);
+        gain.gain.setValueAtTime(0.2, now + i * 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.3);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now + i * 0.1);
+        osc.stop(now + i * 0.1 + 0.3);
+    });
+}
+
+// --- 裏コマンド発動（常に5ポイント・TAP不可・自動モード） ---
+function triggerSecretCommand() {
+    jumpCount = 5;
+    isAutoMode = true;
+    playClearSound();
+}
+
+// --- リセット＆ゲームスタート ---
+function resetGame() {
+    futonActive = true;
+    futonX = -100;
+    futonPassed = false;
+    if (!isAutoMode) {
+        jumpCount = 0;
+    } else {
+        jumpCount = 5;
+    }
+    
+    charList.forEach(c => {
+        c.jumpY = 0;
+        c.isJumping = false;
+        c.jumpVelocity = 0;
+    });
+}
+
+function startCountdown() {
+    gameState = 'COUNTDOWN';
+    countdownNum = 3;
+    
+    if (countdownTimer) clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+        countdownNum--;
+        if (countdownNum <= 0) {
+            clearInterval(countdownTimer);
+            resetGame();
+            gameState = 'PLAYING';
+        }
+    }, 1000);
+}
+
+function triggerGameOver() {
+    playHitSound();
+    gameState = 'GAMEOVER';
+}
+
+// --- 入力処理 ---
+function handleAction() {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    if (gameState === 'TITLE' || gameState === 'GAMEOVER') {
+        startCountdown();
+        return;
+    }
+
+    // 自動モード時はプレイヤーのタップ操作を受け付けない
+    if (gameState === 'PLAYING' && !isAutoMode) {
+        const sChar = charList[4]; // S (プレイヤー)
+        if (!sChar.isJumping) {
+            // フライング判定
+            if (futonX < sChar.x - 180) {
+                sChar.isJumping = true;
+                sChar.jumpVelocity = JUMP_POWER;
+                triggerGameOver();
+                return;
+            }
+
+            sChar.isJumping = true;
+            sChar.jumpVelocity = JUMP_POWER;
+            playVoice(sChar.voice);
+        }
+    }
+}
+
+// キーボード操作（スペースキー）
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+        e.preventDefault();
+        handleAction();
+    }
+});
+
+// 画面タップ・クリック処理
+function handlePointerDown(e) {
+    if (e.target === document.body) {
+        triggerSecretCommand();
+        return;
+    }
+    handleAction();
+}
+
+window.addEventListener('mousedown', handlePointerDown);
+window.addEventListener('touchstart', (e) => {
+    if (e.target === document.body) {
+        triggerSecretCommand();
+    } else {
+        e.preventDefault();
+        handleAction();
+    }
+}, { passive: false });
+
+// --- メインアップデート ---
+function update() {
+    if (gameState !== 'PLAYING') return;
+
+    if (futonActive) {
+        futonX += futonSpeed;
+
+        // CPU（T, O, N, G）の自動ジャンプ
+        charList.forEach((char) => {
+            if (char.isCPU) {
+                if (futonX > char.x - 65 && futonX < char.x && !char.isJumping) {
+                    char.isJumping = true;
+                    char.jumpVelocity = JUMP_POWER;
+                    playVoice(char.voice);
+                }
+            }
+        });
+
+        // プレイヤー（S）の自動ジャンプ判定（開発者モード・自動化時）
+        const sChar = charList[4];
+        if (isAutoMode && !sChar.isJumping) {
+            if (futonX > sChar.x - 65 && futonX < sChar.x) {
+                sChar.isJumping = true;
+                sChar.jumpVelocity = JUMP_POWER;
+                playVoice(sChar.voice);
+            }
+        }
+
+        // プレイヤー（S）の通過＆衝突判定
+        const playerX = sChar.x;
+        const sJumpY = sChar.jumpY;
+
+        if (futonX > playerX + 30 && !futonPassed) {
+            futonPassed = true;
+            if (isAutoMode) {
+                jumpCount = 5; // 自動モード時は5ポイント固定
+            } else {
+                jumpCount++;
+            }
+        }
+
+        if (futonX > playerX - 30 && futonX < playerX + 30) {
+            if (sJumpY > -25) {
+                triggerGameOver();
+            }
+        }
+
+        if (futonX > 900) {
+            futonX = -100;
+            futonPassed = false;
+        }
+    }
+
+    // ジャンプ物理演算
+    charList.forEach(char => {
+        if (char.isJumping) {
+            char.jumpY += char.jumpVelocity;
+            char.jumpVelocity += GRAVITY;
+            if (char.jumpY >= 0) {
+                char.jumpY = 0;
+                char.isJumping = false;
+            }
+        }
+    });
+}
+
+// --- 描画処理 ---
+function draw() {
+    ctx.fillStyle = '#fcfbfa';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 1. ベッド
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.strokeRect(40, 180, 25, 200);
+    ctx.strokeRect(40, 320, 720, 35);
+    ctx.strokeRect(60, 355, 20, 40);
+    ctx.strokeRect(720, 355, 20, 40);
+    ctx.strokeRect(65, 300, 690, 20);
+    ctx.stroke();
+
+    // 2. キャラクター描画 (TONGS)
+    const charWidth = 70;
+    const charHeight = 80;
+    const baseY = 220;
+
+    charList.forEach((char) => {
+        const drawY = baseY + char.jumpY;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(char.x, drawY, charWidth, charHeight);
+        ctx.strokeStyle = '#cccccc';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(char.x, drawY, charWidth, charHeight);
+
+        const img = images[char.key];
+        if (img && img.complete && img.naturalWidth !== 0) {
+            ctx.drawImage(img, char.x, drawY, charWidth, charHeight);
+        } else {
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 36px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(char.key, char.x + charWidth / 2, drawY + charHeight / 2);
+        }
+    });
+
+    // 3. 布団描画
+    if (futonActive && gameState === 'PLAYING') {
+        ctx.save();
+        ctx.translate(futonX, baseY + 40);
+        ctx.fillStyle = '#e8d5b7';
+        ctx.strokeStyle = '#8b5a2b';
+        ctx.lineWidth = 3;
+
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 35, 25, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(-5, 0, 15, 0, Math.PI * 1.5);
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    // 4. スコアカウンター表示
+    if (gameState === 'PLAYING') {
+        ctx.fillStyle = '#222222';
+        ctx.font = 'bold 20px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(`${jumpCount} 回`, 760, 40);
+    }
+
+    // 5. オーバーレイ画面
+    if (gameState === 'TITLE') {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(280, 180, 240, 70);
+        ctx.strokeStyle = '#222222';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(280, 180, 240, 70);
+
+        ctx.fillStyle = '#222222';
+        ctx.font = 'bold 28px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('START', 400, 215);
+    } 
+    else if (gameState === 'COUNTDOWN') {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#ff3333';
+        ctx.font = 'bold 90px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(countdownNum, 400, 200);
+    } 
+    else if (gameState === 'GAMEOVER') {
+        ctx.fillStyle = 'rgba(200, 0, 0, 0.3)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(220, 140, 360, 130);
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(220, 140, 360, 130);
+
+        ctx.fillStyle = '#ff0000';
+        ctx.font = 'bold 32px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('GAME OVER', 400, 180);
+
+        // 結果表示メッセージ
+        ctx.fillStyle = '#222222';
+        ctx.font = 'bold 22px sans-serif';
+        ctx.fillText(`${jumpCount}回飛べました！`, 400, 225);
+    }
+}
+
+// --- メインループ ---
+function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
