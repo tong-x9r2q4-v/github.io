@@ -3,121 +3,196 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>TongStore 傾き玉転がし</title>
-  <meta name="robots" content="noindex, nofollow">
+  <title>TongStore 傾き玉転がしアドベンチャー</title>
   <style>
+    /* 全体のスタイル */
     body {
-      margin: 0;
-      padding: 0;
-      background-color: #2f3542;
-      color: white;
-      font-family: sans-serif;
+      margin: 0; padding: 0;
+      font-family: 'Helvetica Neue', sans-serif;
       text-align: center;
       overflow: hidden; /* スクロール防止 */
       touch-action: none;
+      user-select: none;
+      color: white;
     }
+
+    /* ヘッダーとUI */
     header {
       padding: 10px;
-      background: #1e222d;
+      position: absolute; width: 100%; top: 0;
+      background: rgba(0,0,0,0.5);
+      box-sizing: border-box; z-index: 100;
     }
-    h1 { font-size: 18px; margin: 0; }
-    p { font-size: 12px; margin: 5px 0 0; color: #a4b0be; }
+    h1 { font-size: 16px; margin: 0; }
+    #info { font-size: 12px; margin-top: 5px; color: #eee; height: 1.5em; }
 
-    /* ステージ */
-    #stage {
-      position: relative;
-      width: 320px;
-      height: 400px;
-      background-color: #57606f;
-      margin: 20px auto;
-      border-radius: 16px;
-      border: 4px solid #ffa502;
-      overflow: hidden;
+    /* コース切り替えUI */
+    #course-selector {
+      position: absolute; bottom: 20px; left: 0; width: 100%;
+      text-align: center; z-index: 100;
     }
-
-    /* ボール */
-    #ball {
-      position: absolute;
-      width: 30px;
-      height: 30px;
-      background: radial-gradient(circle at 10px 10px, #ff4757, #2ed573);
-      border-radius: 50%;
-      box-shadow: 2px 2px 5px rgba(0,0,0,0.4);
-      top: 0;
-      left: 0;
-    }
-
-    /* ゴール */
-    #goal {
-      position: absolute;
-      width: 50px;
-      height: 50px;
-      background-color: #ffa502;
-      border: 3px dashed #fff;
-      border-radius: 50%;
-      bottom: 20px;
-      right: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: bold;
-      font-size: 12px;
+    .btn-course {
+      padding: 8px 16px; margin: 5px; font-weight: bold;
+      border: 2px solid white; border-radius: 20px; cursor: pointer;
     }
 
     /* iPhone用 許可ボタン */
     #perm-btn {
-      padding: 10px 20px;
-      background: #2ed573;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-weight: bold;
-      font-size: 14px;
-      margin-top: 10px;
-      display: none; /* 初期状態は非表示 */
+      padding: 12px 24px; background: #2ed573;
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      border: none; border-radius: 8px; z-index: 200; display: none;
     }
+
+    /* ゲーム画面 */
+    #game-canvas { display: block; }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>📱 スマホを傾けてゴールを目指せ！</h1>
-  <p>TongStore 玉転がしチャレンジ</p>
+  <h1>TongStore 傾き玉転がしアドベンチャー</h1>
+  <p id="info">「センサーの許可」をして開始</p>
 </header>
 
-<button id="perm-btn">センサーの使用を許可する</button>
+<button id="perm-btn">1. センサーの許可をする</button>
 
-<div id="stage">
-  <div id="goal">GOAL</div>
-  <div id="ball"></div>
+<!-- Matter.jsの描画キャンバス -->
+<canvas id="game-canvas"></canvas>
+
+<!-- コース切り替えボタン -->
+<div id="course-selector">
+  <button class="btn-course" style="background:#2ed573" onclick="loadCourse('forest')">1. はじまりの森</button>
+  <button class="btn-course" style="background:#70a1ff" onclick="loadCourse('ice')">2. アイス・キャッスル</button>
+  <button class="btn-course" style="background:#ff4757" onclick="loadCourse('lava')">3. 溶岩洞窟</button>
 </div>
 
-<p id="info">スマホを傾けてみよう！</p>
+<!-- 物理エンジン Matter.js (軽量版) を読み込み -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
 
 <script>
-  const stage = document.getElementById('stage');
-  const ball = document.getElementById('ball');
-  const goal = document.getElementById('goal');
-  const info = document.getElementById('info');
+  // --- 基本設定 ---
+  const { Engine, Render, Runner, World, Bodies, Events } = Matter;
+  const canvas = document.getElementById('game-canvas');
+  const infoEl = document.getElementById('info');
   const permBtn = document.getElementById('perm-btn');
 
-  // ステージのサイズとボールの初期位置
-  const stageWidth = 320;
-  const stageHeight = 400;
-  const ballSize = 30;
+  // スマートフォンの画面サイズを取得
+  const W = window.innerWidth;
+  const H = window.innerHeight;
 
-  let x = 20; // 初期位置 X
-  let y = 20; // 初期位置 Y
-  let vx = 0; // 速度 X
-  let vy = 0; // 速度 Y
+  // 物理エンジンの初期化
+  const engine = Engine.create();
+  engine.world.gravity.y = 0; // 初期グラビティはゼロ（傾きで制御）
 
-  // iPhone(iOS 13以降)ではセンサーの許可ダイアログが必要
+  // レンダラー（描画機能）の設定
+  const render = Render.create({
+    canvas: canvas,
+    engine: engine,
+    options: {
+      width: W, height: H,
+      background: 'transparent', // CSSで背景を設定
+      wireframes: false, // ワイヤーフレームをオフにして色を付ける
+      showAngleIndicator: false
+    }
+  });
+
+  Render.run(render);
+  Runner.run(Runner.create(), engine);
+
+  // --- ゲーム要素（ボール、ゴール、壁） ---
+  let ball, goal, walls = [], obstacles = [];
+  const BALL_SIZE = 15; // 半径
+  const GOAL_SIZE = 30; // 半径
+
+  // --- コースデータと物理設定 ---
+  const courses = {
+    forest: {
+      bg: '#57606f', // 森の土
+      ball: '#ff4757', goal: '#ffa502', wall: '#2ed573', obs: '#7bed9f',
+      friction: 0.1, // 普通の摩擦
+      name: 'はじまりの森',
+      info: '木々を避けて進もう',
+      obstacles: [[W*0.2, H*0.3, 30], [W*0.8, H*0.4, 40], [W*0.5, H*0.6, 25], [W*0.3, H*0.7, 35]]
+    },
+    ice: {
+      bg: '#74b9ff', // アイスブルー
+      ball: '#fff', goal: '#ffa502', wall: '#fff', obs: '#a4b0be',
+      friction: 0.0, // ★氷の上は摩擦ゼロ！滑る
+      name: 'アイス・キャッスル',
+      info: '滑る！氷の結晶に注意',
+      obstacles: [[W*0.3, H*0.2, 20], [W*0.7, H*0.3, 20], [W*0.1, H*0.5, 30], [W*0.9, H*0.6, 25], [W*0.4, H*0.8, 30]]
+    },
+    lava: {
+      bg: '#2f3542', // 暗い岩
+      ball: '#ffa502', goal: '#2ed573', wall: '#ff4757', obs: '#eccc68',
+      friction: 0.2, // 溶岩で少し粘る
+      name: '溶岩洞窟',
+      info: '危険！溶岩の罠に落ちるな',
+      obstacles: [[W*0.5, H*0.2, 50], [W*0.2, H*0.4, 60], [W*0.8, H*0.5, 40], [W*0.3, H*0.7, 40], [W*0.7, H*0.8, 50]]
+    }
+  };
+
+  let currentFriction = 0.1; // 現在の摩擦
+
+  // --- コース読み込み処理 ---
+  function loadCourse(courseId) {
+    // 古いオブジェクトをワールドから削除
+    World.clear(engine.world);
+    
+    const c = courses[courseId];
+    canvas.style.backgroundColor = c.bg; // 背景色を設定
+    infoEl.textContent = `${c.name} - ${c.info}`;
+    currentFriction = c.friction;
+
+    // ボールの作成 (少し上からスタート)
+    ball = Bodies.circle(W * 0.1, H * 0.2, BALL_SIZE, {
+      render: { fillStyle: c.ball },
+      frictionAir: 0.01, // 空気抵抗
+      friction: c.friction, // 地面との摩擦（コースごとに変える）
+      label: 'ball'
+    });
+
+    // ゴールの作成 (右下)
+    goal = Bodies.circle(W * 0.85, H * 0.85, GOAL_SIZE, {
+      isStatic: true, // 動かない
+      render: { fillStyle: c.goal, strokeStyle: '#fff', lineWidth: 3 },
+      isSensor: true, // 衝突せず検知だけする
+      label: 'goal'
+    });
+
+    // 外壁の作成 (画面からはみ出さないように)
+    walls = [
+      Bodies.rectangle(W/2, 0, W, 20, { isStatic: true, render: { fillStyle: c.wall } }), // 上
+      Bodies.rectangle(W/2, H, W, 20, { isStatic: true, render: { fillStyle: c.wall } }), // 下
+      Bodies.rectangle(0, H/2, 20, H, { isStatic: true, render: { fillStyle: c.wall } }), // 左
+      Bodies.rectangle(W, H/2, 20, H, { isStatic: true, render: { fillStyle: c.wall } })  // 右
+    ];
+
+    // 障害物の作成 (コースごとのデータから)
+    obstacles = c.obstacles.map(data => {
+      // 溶岩洞窟の障害物は四角くする
+      if (courseId === 'lava') {
+        return Bodies.rectangle(data[0], data[1], data[2]*2, data[2], { isStatic: true, render: { fillStyle: c.obs }, friction: currentFriction });
+      }
+      return Bodies.circle(data[0], data[1], data[2], { isStatic: true, render: { fillStyle: c.obs }, friction: currentFriction });
+    });
+
+    // すべてを物理ワールドに追加
+    World.add(engine.world, [ball, goal, ...walls, ...obstacles]);
+  }
+
+  // 初期コース読み込み（はじまりの森）
+  loadCourse('forest');
+
+  // --- 傾きセンサーの処理 ---
+  // iOS 13+ では許可ダイアログが必要
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    permBtn.style.display = 'inline-block';
+    permBtn.style.display = 'block';
     permBtn.addEventListener('click', () => {
       DeviceOrientationEvent.requestPermission().then(state => {
         if (state === 'granted') {
           permBtn.style.display = 'none';
+          infoEl.textContent = "センサー許可完了。スマホを傾けて！";
           window.addEventListener('deviceorientation', handleOrientation);
         } else {
           alert('センサーの許可が得られませんでした。');
@@ -125,58 +200,45 @@
       });
     });
   } else {
-    // AndroidやiOSの古いバージョン
+    // AndroidやiOSの古いバージョン、PC（動かないがイベントだけ登録）
     window.addEventListener('deviceorientation', handleOrientation);
+    if(window.DeviceOrientationEvent) infoEl.textContent = "スマホを傾けて遊んでね！";
   }
 
-  // 傾き検知処理
   function handleOrientation(event) {
-    // gamma: 左右の傾き (-90 〜 90)
-    // beta: 前後の傾き (-180 〜 180)
-    const gamma = event.gamma || 0;
-    const beta = event.beta || 0;
+    // gamma: 左右の傾き (-90 〜 90) -> Xグラビティ
+    // beta: 前後の傾き (-180 〜 180) -> Yグラビティ
+    const gx = event.gamma || 0;
+    const gy = event.beta || 0;
 
-    // 傾きを速度に変換（少しマイルドにするために0.1を掛ける）
-    vx += gamma * 0.05;
-    vy += beta * 0.05;
+    // 物理エンジンのグラビティ（重力）を傾きに同期させる
+    // (少しマイルドにするために0.015を掛ける。アイスステージは滑るのでさらに0.5倍)
+    const factor = currentFriction === 0 ? 0.007 : 0.015;
+    engine.world.gravity.x = gx * factor;
+    engine.world.gravity.y = (gy - 40) * factor; // 40度くらい傾けた状態をフラットにする
 
-    info.textContent = `左右: ${Math.round(gamma)}° | 前後: ${Math.round(beta)}°`;
+    // infoEl.textContent = `X: ${Math.round(gx)}° | Y: ${Math.round(gy)}°`;
   }
 
-  // アニメーションループ（約1秒間に60回実行）
-  function update() {
-    // 摩擦（だんだん減速させる）
-    vx *= 0.95;
-    vy *= 0.95;
-
-    // 位置の更新
-    x += vx;
-    y += vy;
-
-    // 壁との当たり判定（はみ出さないように）
-    if (x < 0) { x = 0; vx *= -0.5; }
-    if (x > stageWidth - ballSize) { x = stageWidth - ballSize; vx *= -0.5; }
-    if (y < 0) { y = 0; vy *= -0.5; }
-    if (y > stageHeight - ballSize) { y = stageHeight - ballSize; vy *= -0.5; }
-
-    // ボールの位置を画面に反映
-    ball.style.left = x + 'px';
-    ball.style.top = y + 'px';
-
-    // ゴール判定
-    const goalX = stageWidth - 70;
-    const goalY = stageHeight - 70;
-    if (x > goalX && y > goalY) {
-      info.textContent = "🎉 CLEAR! ゴールおめでとう！";
-      info.style.color = "#ffa502";
-      info.style.fontWeight = "bold";
+  // --- 当たり判定（ゴール到達、溶岩トラップ） ---
+  Events.on(engine, 'collisionStart', (event) => {
+    const pairs = event.pairs;
+    for (let i = 0; i < pairs.length; i++) {
+      const pair = pairs[i];
+      // ボールがゴールに触れた
+      if ((pair.bodyA.label === 'ball' && pair.bodyB.label === 'goal') || 
+          (pair.bodyA.label === 'goal' && pair.bodyB.label === 'ball')) {
+        infoEl.textContent = `🎉 ゴールおめでとう！お宝GET！`;
+        infoEl.style.color = "#ffa502"; infoEl.style.fontWeight = "bold";
+      }
     }
+  });
 
-    requestAnimationFrame(update);
-  }
+  // 画面リサイズへの対応
+  window.addEventListener('resize', () => {
+    location.reload(); // リサイズされたらページをリロードして再描画
+  });
 
-  // ゲームの動きをスタート
-  update();
 </script>
 
 </body>
