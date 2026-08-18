@@ -3,367 +3,265 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>オンライン早押しクイズ対戦</title>
+  <title>オンライン宝探し対戦</title>
   <style>
     body {
-      font-family: 'Helvetica Neue', Arial, sans-serif;
-      background-color: #1a1a2e;
-      color: #fff;
+      font-family: sans-serif;
+      background-color: #2c3e50;
+      color: #ecf0f1;
       text-align: center;
       margin: 0;
-      padding: 20px;
+      padding: 15px;
     }
     .container {
-      max-width: 500px;
+      max-width: 420px;
       margin: 0 auto;
-      background: #16213e;
-      padding: 25px;
-      border-radius: 16px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-    }
-    h1 { margin-top: 0; color: #e94560; font-size: 24px; }
-    #status {
-      background: #0f3460;
-      padding: 12px;
-      border-radius: 8px;
-      margin: 15px 0;
-      font-weight: bold;
-      color: #f1c40f;
-    }
-    input {
-      padding: 12px;
-      font-size: 16px;
-      width: 60%;
-      border-radius: 8px;
-      border: none;
-      text-align: center;
-      margin-bottom: 10px;
-    }
-    button {
-      padding: 12px 20px;
-      font-size: 16px;
-      font-weight: bold;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      margin: 5px;
-      transition: 0.2s;
-    }
-    button:active { transform: scale(0.95); }
-    .btn-main { background: #e94560; color: white; }
-    .btn-sub { background: #00b4d8; color: white; }
-    
-    /* スコアボード */
-    .score-board {
-      display: flex;
-      justify-content: space-around;
-      background: #0f3460;
-      padding: 15px;
-      border-radius: 10px;
-      margin-bottom: 20px;
-    }
-    .score-val { font-size: 32px; font-weight: bold; color: #4eacc5; }
-
-    /* クイズエリア */
-    .quiz-box {
-      background: #0f3460;
+      background: #34495e;
       padding: 20px;
       border-radius: 12px;
-      margin-bottom: 15px;
-      text-align: left;
     }
-    .quiz-title { font-size: 14px; color: #e94560; font-weight: bold; }
-    .quiz-text { font-size: 18px; margin: 10px 0; font-weight: bold; line-height: 1.4; }
-    
-    /* 早押しボタン */
-    .btn-push {
-      width: 100%;
-      height: 100px;
-      background: #e94560;
-      color: white;
-      font-size: 26px;
-      border-radius: 12px;
-      box-shadow: 0 6px 0 #900C3F;
+    #status {
+      background: #16a085;
+      padding: 10px;
+      border-radius: 6px;
+      margin: 15px 0;
+      font-weight: bold;
     }
-    .btn-push:disabled {
-      background: #555;
-      box-shadow: none;
-      cursor: not-allowed;
+    input {
+      padding: 10px; font-size: 16px; width: 60%;
+      border-radius: 6px; border: none; text-align: center;
     }
+    button {
+      padding: 10px 15px; font-size: 15px; font-weight: bold;
+      border: none; border-radius: 6px; cursor: pointer; margin: 5px;
+    }
+    .btn-main { background: #e67e22; color: white; }
+    .btn-sub { background: #2980b9; color: white; }
 
-    /* 選択肢ボタン */
-    .option-btn {
-      width: 100%;
-      padding: 14px;
-      margin: 8px 0;
-      background: #e0e0e0;
-      color: #333;
-      font-size: 16px;
-      text-align: left;
+    /* マス目のスタイル */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      margin: 15px 0;
     }
-    .option-btn:hover { background: #fff; }
+    .cell {
+      width: 100%;
+      aspect-ratio: 1;
+      background: #bdc3c7;
+      color: #333;
+      font-size: 20px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .cell.has-my-treasure { background: #f1c40f; } /* 自分の宝 */
+    .cell.hit { background: #e74c3c; color: white; } /* 宝発見！ */
+    .cell.miss { background: #7f8c8d; color: white; } /* ハズレ */
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h1>⚡ 早押しクイズ ONLINE ⚡</h1>
-  <div id="status">対戦相手を待っています...</div>
+  <h2>🏴‍☠️ リアルタイム宝探し 🏴‍☠️</h2>
+  <div id="status">あいことばを決めて接続してください</div>
 
-  <!-- 接続設定エリア -->
+  <!-- 接続エリア -->
   <div id="setup-area">
-    <p>あいことばを決めて接続しよう！</p>
-    <input type="text" id="room-input" placeholder="例: quiz123" value="quiz123">
+    <input type="text" id="room-input" value="treasure123">
     <br>
-    <button class="btn-main" id="host-btn">部屋を作る（ホスト）</button>
-    <button class="btn-sub" id="join-btn">部屋に入る（ゲスト）</button>
+    <button class="btn-main" id="host-btn">部屋を作る（1人目）</button>
+    <button class="btn-sub" id="join-btn">部屋に入る（2人目）</button>
   </div>
 
   <!-- ゲームエリア -->
   <div id="game-area" style="display: none;">
-    <div class="score-board">
-      <div>あなた<div class="score-val" id="my-score">0</div></div>
-      <div>あいて<div class="score-val" id="peer-score" style="color:#e94560">0</div></div>
-    </div>
+    <h3 id="phase-title">【フェーズ1】宝を3つ隠そう！</h3>
+    
+    <!-- 5x5 グリッド -->
+    <div class="grid" id="grid"></div>
 
-    <!-- クイズ表示部 -->
-    <div class="quiz-box">
-      <div class="quiz-title" id="quiz-num">第 1 問</div>
-      <div class="quiz-text" id="quiz-q">接続中...</div>
-    </div>
-
-    <!-- 早押しボタン -->
-    <div id="push-area">
-      <button class="btn-push" id="push-btn" disabled>早押し！</button>
-    </div>
-
-    <!-- 解答選択肢エリア（早押し成功時に表示） -->
-    <div id="options-area" style="display: none;">
-      <p style="color:#f1c40f; font-weight:bold;">解答を選択してください！</p>
-      <div id="options-container"></div>
-    </div>
+    <button class="btn-main" id="ready-btn" style="width:100%; display:none;">宝の配置を確定！</button>
   </div>
 </div>
 
-<!-- PeerJS ライブラリの読み込み -->
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-
 <script>
-  // 30問のクイズデータ
-  const quizData = [
-    { q: "日本の都道府県で、2番目に面積が広いのはどこ？", options: ["岩手県", "福島県", "長野県"], ans: 0 },
-    { q: "世界で一番高い山「エベレスト」がある山脈の名前は？", options: ["アルプス山脈", "ヒマラヤ山脈", "アンデス山脈"], ans: 1 },
-    { q: "トランプのカードで、13の数字が書かれている札の絵柄は？", options: ["ナイト", "クイーン", "キング"], ans: 2 },
-    { q: "リンゴの切り口が茶色くなるのを防ぐのに効果的な液体は？", options: ["砂糖水", "食塩水", "炭酸水"], ans: 1 },
-    { q: "ラグビー（15人制）は1チーム何人？", options: ["13人", "15人", "18人"], ans: 1 },
-    { q: "オリンピックの五輪マークで使われていない色は？", options: ["緑", "黄", "紫"], ans: 2 },
-    { q: "太陽系の中で、太陽に一番近い惑星は？", options: ["水星", "金星", "火星"], ans: 0 },
-    { q: "大人の骨の数は、体全体で約何本？", options: ["約100本", "約200本", "約300本"], ans: 1 },
-    { q: "寿司の「シャリ」という言葉の元々の由来は？", options: ["白い砂", "仏教のお骨（仏舎利）", "研いだお米"], ans: 1 },
-    { q: "チェスの盤面（チェスボード）は全部で何マス？", options: ["64マス", "72マス", "81マス"], ans: 0 },
-    { q: "元素記号「O」が表す元素は？", options: ["水素", "酸素", "窒素"], ans: 1 },
-    { q: "慣用句で「めったに起きない非常に珍しいこと」を意味する言葉は？", options: ["晴天の霹靂", "千載一遇", "一期一会"], ans: 1 },
-    { q: "地球が太陽の周りを1周するのにかかる正確な時間は約何日？", options: ["365.25日", "365.50日", "365.75日"], ans: 0 },
-    { q: "標準的なピアノの鍵盤は、白鍵と黒鍵をあわせて全部で何鍵？", options: ["76鍵", "88鍵", "100鍵"], ans: 1 },
-    { q: "一般的に世界で一番長い川とされるアフリカの川は？", options: ["ナイル川", "コンゴ川", "ミシシッピ川"], ans: 0 },
-    { q: "日本で2番目に高い山は？", options: ["槍ヶ岳", "北岳", "奥穂高岳"], ans: 1 },
-    { q: "ブラジルの公用語は何語？", options: ["スペイン語", "ポルトガル語", "英語"], ans: 1 },
-    { q: "野菜の「キャベツ」と「レタス」、アブラナ科の植物はどっち？", options: ["キャベツ", "レタス", "どちらもアブラナ科"], ans: 0 },
-    { q: "アニメ『サザエさん』の主人公・サザエさんの弟の名前は？", options: ["カツオ", "タラオ", "ノリスケ"], ans: 0 },
-    { q: "「1グロス」は何個？", options: ["100個", "120個", "144個"], ans: 2 },
-    { q: "光の三原色（赤・緑・青）をすべて混ぜ合わせると何色になる？", options: ["黒", "白", "茶色"], ans: 1 },
-    { q: "ことわざ「二兎を追う者は〜」に続く言葉は？", options: ["一兎をも得ず", "足をすくわれる", "転びけり"], ans: 0 },
-    { q: "世界一大きな哺乳類はどれ？", options: ["アフリカゾウ", "シロナガスクジラ", "ダイオウイカ"], ans: 1 },
-    { q: "音の高さ（周波数）を表す単位「Hz」の読み方は？", options: ["ヘクトパスカル", "ヘルツ", "ジュール"], ans: 1 },
-    { q: "「春の七草」の中で、一般的に「ダイコン」を指す草は？", options: ["すずしろ", "すずな", "なずな"], ans: 0 },
-    { q: "日本初の硬貨として有名な、708年に作られたお金の名前は？", options: ["寛永通宝", "和同開珎", "天保通宝"], ans: 1 },
-    { q: "野球で「1試合を通して1人もランナーを出さずに勝利する」ことは？", options: ["完封勝利", "ノーヒットノーラン", "完全試合"], ans: 2 },
-    { q: "Web言語「HTML」の「M」は何の略？", options: ["Model", "Markup", "Master"], ans: 1 },
-    { q: "タコとイカ、足の数が多いのはどっち？", options: ["タコ", "イカ", "同じ"], ans: 1 },
-    { q: "「点滅」「点灯」の「点」という漢字の本来の意味は？", options: ["つける（火をつける）", "まばたきする", "しるしをつける"], ans: 0 }
-  ];
+  const GRID_SIZE = 5;
+  const TREASURE_COUNT = 3;
 
-  let peer = null;
-  let conn = null;
-  let isHost = false;
-  let currentQuizIndex = 0;
-  let myScore = 0;
-  let peerScore = 0;
-  let isAnswered = false; // その問題で誰かが早押ししたか
+  let peer = null, conn = null;
+  let myTreasures = [];    // 自分の宝の位置 (0~24)
+  let peerTreasures = [];  // 相手の宝の位置（確定後に受取）
+  let myFoundCount = 0;    // 自分が発見した相手の宝の数
+  let peerFoundCount = 0;  // 相手が発見した自分の宝の数
+  let isMyTurn = false;
+  let phase = 'setup';     // 'setup' -> 'waiting' -> 'battle'
 
-  // UI要素
   const statusEl = document.getElementById('status');
   const setupArea = document.getElementById('setup-area');
   const gameArea = document.getElementById('game-area');
-  const quizNumEl = document.getElementById('quiz-num');
-  const quizQEl = document.getElementById('quiz-q');
-  const pushBtn = document.getElementById('push-btn');
-  const pushArea = document.getElementById('push-area');
-  const optionsArea = document.getElementById('options-area');
-  const optionsContainer = document.getElementById('options-container');
+  const gridEl = document.getElementById('grid');
+  const readyBtn = document.getElementById('ready-btn');
+  const phaseTitle = document.getElementById('phase-title');
 
-  // ホスト（部屋を作る）
-  document.getElementById('host-btn').addEventListener('click', () => {
+  // 1. 接続処理
+  document.getElementById('host-btn').addEventListener('click', () => initPeer(true));
+  document.getElementById('join-btn').addEventListener('click', () => initPeer(false));
+
+  function initPeer(isHost) {
     const roomId = document.getElementById('room-input').value;
     if (!roomId) return alert("あいことばを入力してください");
-    isHost = true;
-    peer = new Peer(roomId);
 
+    peer = isHost ? new Peer(roomId) : new Peer();
+    
     peer.on('open', id => {
-      statusEl.textContent = `部屋を作成しました。相手を待っています... (ID: ${id})`;
-      setupArea.style.display = 'none';
-      gameArea.style.display = 'block';
+      statusEl.textContent = isHost ? `部屋作成！相手を待っています...` : `接続中...`;
+      if (!isHost) {
+        conn = peer.connect(roomId);
+        setupConnection();
+      }
     });
 
-    peer.on('connection', c => {
-      conn = c;
-      setupConnection();
-    });
-  });
+    if (isHost) {
+      peer.on('connection', c => {
+        conn = c;
+        setupConnection();
+      });
+    }
+  }
 
-  // ゲスト（部屋に入る）
-  document.getElementById('join-btn').addEventListener('click', () => {
-    const roomId = document.getElementById('room-input').value;
-    if (!roomId) return alert("あいことばを入力してください");
-    isHost = false;
-    peer = new Peer();
-
-    peer.on('open', () => {
-      conn = peer.connect(roomId);
-      setupConnection();
-      setupArea.style.display = 'none';
-      gameArea.style.display = 'block';
-    });
-  });
-
-  // 通信セットアップ
   function setupConnection() {
     conn.on('open', () => {
-      statusEl.textContent = "対戦相手が接続しました！クイズスタート！";
-      if (isHost) {
-        // ホストが最初の出題をスタート
-        startNewQuestion(0);
-      }
+      setupArea.style.display = 'none';
+      gameArea.style.display = 'block';
+      statusEl.textContent = `接続完了！自分の盤面に宝を3つ隠してください。`;
+      createGrid();
     });
 
     conn.on('data', data => {
-      // 出題受信
-      if (data.type === 'next_quiz') {
-        renderQuiz(data.index);
+      // 相手が宝の配置を完了した
+      if (data.type === 'ready') {
+        peerTreasures = data.treasures;
+        checkBothReady();
       }
-      // 相手が早押しボタンを押した
-      else if (data.type === 'pushed') {
-        isAnswered = true;
-        pushBtn.disabled = true;
-        statusEl.textContent = "相手が早押ししました！解答待ち...";
+      // 相手がこちらのマスを攻撃（探してきた）
+      else if (data.type === 'attack') {
+        handleAttacked(data.index);
       }
-      // 判定結果受信
-      else if (data.type === 'result') {
-        peerScore = data.peerScore;
-        myScore = data.myScore;
-        document.getElementById('my-score').textContent = myScore;
-        document.getElementById('peer-score').textContent = peerScore;
-        statusEl.textContent = data.msg;
-
-        // 次の問題へ（ホストが制御）
-        setTimeout(() => {
-          if (isHost) {
-            startNewQuestion(currentQuizIndex + 1);
-          }
-        }, 3000);
+      // 自分の攻撃結果が返ってきた
+      else if (data.type === 'attack_result') {
+        handleAttackResult(data.index, data.isHit);
       }
     });
   }
 
-  // 新しい問題の出題（ホストから送信）
-  function startNewQuestion(index) {
-    if (index >= quizData.length) {
-      // 終了判定
-      let winMsg = myScore > peerScore ? "🎉 あなたの勝ち！" : (myScore < peerScore ? "💀 あなたの負け..." : "🤝 引き分け！");
-      conn.send({ type: 'result', msg: "全問終了！ " + winMsg, myScore: peerScore, peerScore: myScore });
-      statusEl.textContent = "全問終了！ " + winMsg;
-      return;
+  // 2. グリッド画面の作成（0〜24の25マス）
+  function createGrid() {
+    gridEl.innerHTML = '';
+    for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.index = i;
+      cell.addEventListener('click', () => handleCellClick(i, cell));
+      gridEl.appendChild(cell);
     }
-    currentQuizIndex = index;
-    conn.send({ type: 'next_quiz', index: index });
-    renderQuiz(index);
   }
 
-  // 画面に問題を表示
-  function renderQuiz(index) {
-    currentQuizIndex = index;
-    isAnswered = false;
+  // 3. マス目がタップされたときの処理
+  function handleCellClick(index, cell) {
+    // 【フェーズ1：宝を隠す】
+    if (phase === 'setup') {
+      if (myTreasures.includes(index)) {
+        // 解除
+        myTreasures = myTreasures.filter(i => i !== index);
+        cell.classList.remove('has-my-treasure');
+        cell.textContent = '';
+      } else if (myTreasures.length < TREASURE_COUNT) {
+        // 選択
+        myTreasures.push(index);
+        cell.classList.add('has-my-treasure');
+        cell.textContent = '💎';
+      }
+      readyBtn.style.display = (myTreasures.length === TREASURE_COUNT) ? 'block' : 'none';
+    }
+    // 【フェーズ2：対戦（攻撃）】
+    else if (phase === 'battle') {
+      if (!isMyTurn) return alert("相手のターンです！");
+      if (cell.classList.contains('hit') || cell.classList.contains('miss')) return;
+
+      // 相手に「このマスを探すよ！」と送信
+      conn.send({ type: 'attack', index: index });
+      isMyTurn = false;
+      statusEl.textContent = "相手の判定を待っています...";
+    }
+  }
+
+  // 宝配置完了ボタン
+  readyBtn.addEventListener('click', () => {
+    phase = 'waiting';
+    readyBtn.style.display = 'none';
+    statusEl.textContent = "相手が宝を隠すのを待っています...";
     
-    quizNumEl.textContent = `第 ${index + 1} 問 / 全${quizData.length}問`;
-    quizQEl.textContent = quizData[index].q;
-
-    pushArea.style.display = 'block';
-    optionsArea.style.display = 'none';
-    pushBtn.disabled = false;
-    statusEl.textContent = "問題！早押しボタンを押してください！";
-  }
-
-  // 早押しボタンを押したとき
-  pushBtn.addEventListener('click', () => {
-    if (isAnswered) return;
-    isAnswered = true;
-    pushBtn.disabled = true;
-
-    // 相手に「自分が押した」ことを送信
-    conn.send({ type: 'pushed' });
-
-    statusEl.textContent = "あなたが押し勝ちました！答えを選んでください！";
-    showOptions();
+    // 相手に自分の宝の位置を送信
+    conn.send({ type: 'ready', treasures: myTreasures });
+    checkBothReady();
   });
 
-  // 選択肢の表示
-  function showOptions() {
-    pushArea.style.display = 'none';
-    optionsArea.style.display = 'block';
-    optionsContainer.innerHTML = "";
-
-    const quiz = quizData[currentQuizIndex];
-    quiz.options.forEach((opt, idx) => {
-      const btn = document.createElement('button');
-      btn.className = 'option-btn';
-      btn.textContent = `${idx + 1}. ${opt}`;
-      btn.onclick = () => selectAnswer(idx);
-      optionsContainer.appendChild(btn);
-    });
+  function checkBothReady() {
+    if (myTreasures.length === TREASURE_COUNT && peerTreasures.length === TREASURE_COUNT) {
+      phase = 'battle';
+      phaseTitle.textContent = "【フェーズ2】相手の宝を探せ！";
+      // 盤面をクリアして「相手の宝を探す画面」にする
+      createGrid();
+      
+      // ホストが先攻
+      isMyTurn = peer.id !== conn.peer; 
+      updateTurnStatus();
+    }
   }
 
-  // 解答を選んだとき
-  function selectAnswer(selectedIndex) {
-    optionsArea.style.display = 'none';
-    const quiz = quizData[currentQuizIndex];
+  function updateTurnStatus() {
+    statusEl.textContent = isMyTurn ? "⚔️ あなたのターン！マスを選んで探そう！" : "🛡️ 相手のターンです...";
+  }
 
-    let msg = "";
-    if (selectedIndex === quiz.ans) {
-      myScore += 10;
-      msg = "⭕️ 正解！ (+10pt)";
+  // 相手から攻撃されたときの判定処理
+  function handleAttacked(index) {
+    const isHit = myTreasures.includes(index);
+    if (isHit) peerFoundCount++;
+
+    // 攻撃結果を相手に返信する
+    conn.send({ type: 'attack_result', index: index, isHit: isHit });
+
+    if (peerFoundCount >= TREASURE_COUNT) {
+      statusEl.textContent = "💀 相手にすべての宝が見つけられました... あなたの負け！";
+      phase = 'end';
     } else {
-      myScore -= 5;
-      msg = "❌ 不正解... (-5pt)";
+      isMyTurn = true;
+      updateTurnStatus();
+    }
+  }
+
+  // 自分の攻撃結果を受け取ったときの画面更新
+  function handleAttackResult(index, isHit) {
+    const cell = gridEl.children[index];
+    if (isHit) {
+      cell.classList.add('hit');
+      cell.textContent = '💥';
+      myFoundCount++;
+    } else {
+      cell.classList.add('miss');
+      cell.textContent = '🌊';
     }
 
-    document.getElementById('my-score').textContent = myScore;
-
-    // 結果を相手に通知（スコアは入れ替えて送信）
-    conn.send({
-      type: 'result',
-      msg: `相手の解答: ${msg}`,
-      myScore: peerScore,
-      peerScore: myScore
-    });
-
-    statusEl.textContent = msg + " 次の問題へ進みます...";
-
-    // ホストなら3秒後に次の問題へ
-    setTimeout(() => {
-      if (isHost) {
-        startNewQuestion(currentQuizIndex + 1);
-      }
-    }, 3000);
+    if (myFoundCount >= TREASURE_COUNT) {
+      statusEl.textContent = "🎉 相手の宝をすべて発見！あなたの勝ち！";
+      phase = 'end';
+    }
   }
 </script>
 
