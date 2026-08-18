@@ -2,47 +2,124 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>ミニDuolingo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>10秒連打測定ゲーム</title>
+  <meta name="robots" content="noindex, nofollow">
   <style>
-    body { font-family: sans-serif; text-align: center; background: #f7f7f7; padding: 40px; }
-    .card { background: white; padding: 30px; border-radius: 16px; display: inline-block; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-    button { background: #58cc02; color: white; border: none; padding: 12px 24px; font-size: 18px; border-radius: 12px; cursor: pointer; margin: 10px; font-weight: bold; }
-    button:hover { background: #46a302; }
-    #result { margin-top: 20px; font-size: 20px; font-weight: bold; }
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      background-color: #f0f4f8;
+      padding: 20px;
+    }
+    .card {
+      background: white;
+      max-width: 400px;
+      margin: 0 auto;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    .stat {
+      font-size: 24px;
+      margin: 15px 0;
+    }
+    .count {
+      font-size: 48px;
+      font-weight: bold;
+      color: #ff4757;
+    }
+    #tap-btn {
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      font-size: 28px;
+      font-weight: bold;
+      color: white;
+      background-color: #2ed573;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 6px 0 #26af5f;
+      transition: transform 0.05s;
+      user-select: none;
+    }
+    #tap-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 #26af5f;
+    }
+    #tap-btn:disabled {
+      background-color: #ccc;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
 
-  <div class="card">
-    <h2>❤️ ❤️ ❤️</h2>
-    <h1>「Apple」の意味は？</h1>
-    
-    <button onclick="checkAnswer(true)">りんご</button>
-    <button onclick="checkAnswer(false)">みかん</button>
-    <button onclick="checkAnswer(false)">バナナ</button>
+<div class="card">
+  <h1>🔥 10秒連打測定 🔥</h1>
+  <div class="stat">残り時間: <span id="time">10.0</span> 秒</div>
+  <div class="stat">回数: <span id="score" class="count">0</span></div>
+  
+  <br>
+  <button id="tap-btn">スタート！</button>
+  <br><br>
 
-    <div id="result"></div>
-  </div>
+  <h2 id="result"></h2>
+</div>
 
-  <script>
-    function checkAnswer(isCorrect) {
-      const resultDiv = document.getElementById('result');
-      if (isCorrect) {
-        resultDiv.innerHTML = '🎉 正解！すごい！';
-        resultDiv.style.color = '#58cc02';
-      } else {
-        resultDiv.innerHTML = '❌ 残念... ちがうよ';
-        resultDiv.style.color = '#ff4b4b';
-      }
+<script>
+  let count = 0;
+  let timeLeft = 10.0;
+  let timer = null;
+  let isPlaying = false;
+
+  const btn = document.getElementById('tap-btn');
+  const scoreDisplay = document.getElementById('score');
+  const timeDisplay = document.getElementById('time');
+  const resultDisplay = document.getElementById('result');
+
+  btn.addEventListener('click', () => {
+    // 最初の1クリックでタイマースタート
+    if (!isPlaying && timeLeft === 10.0) {
+      isPlaying = true;
+      btn.textContent = '連打！！';
+      btn.style.backgroundColor = '#ff4757';
+      
+      timer = setInterval(() => {
+        timeLeft -= 0.1;
+        timeDisplay.textContent = timeLeft.toFixed(1);
+
+        if (timeLeft <= 0) {
+          clearInterval(timer);
+          endGame();
+        }
+      }, 100);
     }
-  </script>
+
+    if (isPlaying) {
+      count++;
+      scoreDisplay.textContent = count;
+    }
+  });
+
+  function endGame() {
+    isPlaying = false;
+    btn.disabled = true;
+    btn.textContent = '終了！';
+    timeDisplay.textContent = '0.0';
+
+    const cps = (count / 10).toFixed(1); // 1秒あたりの回数
+    let rank = '';
+
+    if (count >= 80) rank = '⚡ 神の領域！';
+    else if (count >= 60) rank = '🔥 連打の達人！';
+    else if (count >= 40) rank = '👍 かなり速い！';
+    else rank = '🐢 のんびりペース';
+
+    resultDisplay.innerHTML = `結果: ${count} 回！<br>(秒間 ${cps} 回)<br>${rank}`;
+  }
+</script>
 
 </body>
 </html>
-
-
-
-
-
-
-
