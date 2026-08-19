@@ -236,6 +236,21 @@
             color: white;
         }
 
+        .btn-delete {
+            background: #f43f5e;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .btn-delete:hover {
+            background: #be123c;
+        }
+
         .status-box {
             margin-top: 20px;
             padding: 16px 20px;
@@ -271,11 +286,25 @@
             padding: 12px 14px;
             text-align: left;
             border-bottom: 1px solid #e2e8f0;
+            vertical-align: middle;
         }
 
         .admin-table th {
             background: #f8fafc;
             color: #475569;
+        }
+
+        .duplicate-badge {
+            background-color: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
         }
     </style>
 </head>
@@ -313,7 +342,7 @@
                         <i class="fa-solid fa-id-card"></i>
                         <input type="text" id="tongCardId" placeholder="4桁の認定IDを入力" maxlength="4">
                     </div>
-                    <div class="help-text">※ 有効なID（4957, 3264, 7654）入力で無料</div>
+                    <div class="help-text">※ Tongカードをお持ちの方は入力してください</div>
                 </div>
 
                 <div class="form-group full-width">
@@ -345,7 +374,7 @@
             <label for="loginId">ログインID または 管理者パスワード</label>
             <div class="input-wrapper">
                 <i class="fa-solid fa-key"></i>
-                <input type="password" id="loginId" placeholder="5桁予約ID または 管理者キー">
+                <input type="password" id="loginId" placeholder="5桁予約ID または 管理者パスワード">
             </div>
         </div>
         <button type="button" class="btn btn-secondary" onclick="loginMyPage()">
@@ -372,10 +401,8 @@
 
 <script>
     const VALID_TONG_CARDS = ["4957", "3264", "7654"];
-    const ADMIN_PEER_ID = "tong-bed-admin-master"; // 管理者のP2P識別ID
-    
-    // 設定したい管理者パスワード（ご自由に変更してください）
-    const ADMIN_PASSWORD = "YOUR_ADMIN_PASSWORD"; 
+    const ADMIN_PEER_ID = "tong-bed-admin-master"; 
+    const ADMIN_PASSWORD = "admin123";
 
     const bookDateInput = document.getElementById('bookDate');
     const tongCardInput = document.getElementById('tongCardId');
@@ -437,21 +464,17 @@
             createdAt: new Date().toLocaleString()
         };
 
-        // ローカルに仮保存
         localStorage.setItem(`res_${reservationId}`, JSON.stringify(reservationData));
 
         submitBtn.disabled = true;
         showStatus(statusDiv, '<i class="fa-solid fa-spinner fa-spin"></i> 管理者の端末を探してP2P接続中...', 'success');
 
-        // 一時的なPeerを作成して管理者に送信
         const clientPeer = new Peer();
 
         clientPeer.on('open', function() {
-            // 管理者PeerIDへ接続要求
             const conn = clientPeer.connect(ADMIN_PEER_ID);
 
             conn.on('open', function() {
-                // データを送信
                 conn.send(reservationData);
                 
                 showStatus(statusDiv, `
@@ -465,7 +488,6 @@
                     </div>
                 `, 'success');
 
-                // 送信後に通信を即座に切断！
                 setTimeout(() => {
                     conn.close();
                     clientPeer.destroy();
@@ -508,6 +530,7 @@
             adminPanel.style.display = 'block';
             startAdminPeerStation();
             loadAdminTable();
+            showStatus(statusDiv, '管理者としてログインしました。', 'success');
             return;
         }
 
@@ -537,10 +560,8 @@
             statusLabel.style.color = "#166534";
         });
 
-        // 利用客からの接続とデータ受信を待機
         adminPeer.on('connection', function(conn) {
             conn.on('data', function(data) {
-                // 受信したデータをローカルストレージへ保存
                 const currentStore = JSON.parse(localStorage.getItem('admin_reservations') || '{}');
                 currentStore[data.id] = data;
                 localStorage.setItem('admin_reservations', JSON.stringify(currentStore));
@@ -565,12 +586,62 @@
             return;
         }
 
-        let html = `<table class="admin-table"><thead><tr><th>5桁ID</th><th>予約日</th><th>時間</th><th>料金</th><th>PIN</th><th>Tongカード</th></tr></thead><tbody>`;
+        const dateCounts = {};
         list.forEach(res => {
-            html += `<tr><td><strong>${res.id}</strong></td><td>${res.date}</td><td>${res.checkinTime}</td><td>${res.price}</td><td><strong>${res.pin}</strong></td><td>${res.tongCardUsed || '-'}</td></tr>`;
+            dateCounts[res.date] = (dateCounts[res.date] || 0) + 1;
         });
+
+        let html = `
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>5桁ID</th>
+                    <th>予約日</th>
+                    <th>ステータス</th>
+                    <th>時間</th>
+                    <th>料金</th>
+                    <th>PIN</th>
+                    <th>Tongカード</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>`;
+
+        list.forEach(res => {
+            const isDuplicate = dateCounts[res.date] > 1;
+            const statusBadge = isDuplicate 
+                ? `<span class="duplicate-badge"><i class="fa-solid fa-xmark"></i> 重複（日付被り）</span>`
+                : `<span style="color:#166534; font-weight:bold;">正常</span>`;
+
+            html += `
+                <tr>
+                    <td><strong>${res.id}</strong></td>
+                    <td>${res.date}</td>
+                    <td>${statusBadge}</td>
+                    <td>${res.checkinTime}</td>
+                    <td>${res.price}</td>
+                    <td><strong>${res.pin}</strong></td>
+                    <td>${res.tongCardUsed || '-'}</td>
+                    <td>
+                        <button class="btn-delete" onclick="deleteReservation('${res.id}')">
+                            <i class="fa-solid fa-trash"></i> 削除
+                        </button>
+                    </td>
+                </tr>`;
+        });
+
         html += '</tbody></table>';
         container.innerHTML = html;
+    }
+
+    function deleteReservation(resId) {
+        if (!confirm(`予約ID: ${resId} を削除してもよろしいですか？`)) return;
+
+        const store = JSON.parse(localStorage.getItem('admin_reservations') || '{}');
+        delete store[resId];
+        localStorage.setItem('admin_reservations', JSON.stringify(store));
+
+        loadAdminTable();
     }
 
     function showStatus(element, msg, type) {
