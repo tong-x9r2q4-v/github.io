@@ -151,6 +151,7 @@
         }
 
         input[type="text"],
+        input[type="password"],
         input[type="date"] {
             width: 100%;
             padding: 13px 16px 13px 44px;
@@ -162,6 +163,7 @@
         }
 
         input[type="text"]:focus,
+        input[type="password"]:focus,
         input[type="date"]:focus {
             outline: none;
             border-color: var(--primary);
@@ -234,11 +236,6 @@
             color: white;
         }
 
-        .btn-danger {
-            background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%);
-            color: white;
-        }
-
         .status-box {
             margin-top: 20px;
             padding: 16px 20px;
@@ -256,22 +253,6 @@
             background: var(--error-bg);
             border: 1px solid #fecaca;
             color: var(--error-text);
-        }
-
-        .pin-box {
-            background: #ffffff;
-            border: 2px dashed #f43f5e;
-            border-radius: 16px;
-            padding: 15px;
-            text-align: center;
-            margin: 15px 0;
-        }
-
-        .pin-number {
-            font-size: 2.5rem;
-            font-weight: 800;
-            letter-spacing: 8px;
-            color: var(--accent);
         }
 
         .admin-card {
@@ -303,7 +284,7 @@
 <div class="container">
     <header>
         <div class="header-logo">
-            <i class="fa-solid fa-bed"></i> Tong Bed Portal (PeerJS P2P)
+            <i class="fa-solid fa-bed"></i> Tong Bed Portal (P2P)
         </div>
         <p>
             <span><i class="fa-regular fa-clock"></i> チェックイン 20:00〜</span>
@@ -358,13 +339,13 @@
     <!-- マイページログイン（確認・変更） -->
     <div class="card">
         <div class="card-title">
-            <i class="fa-solid fa-user-gear"></i> マイページ / 管理者ログイン
+            <i class="fa-solid fa-user-gear"></i> マイページ / 管理者アクセス
         </div>
         <div class="form-group">
-            <label for="loginId">ログインID</label>
+            <label for="loginId">ログインID または 管理者パスワード</label>
             <div class="input-wrapper">
                 <i class="fa-solid fa-key"></i>
-                <input type="text" id="loginId" placeholder="5桁予約ID または admin123">
+                <input type="password" id="loginId" placeholder="5桁予約ID または 管理者キー">
             </div>
         </div>
         <button type="button" class="btn btn-secondary" onclick="loginMyPage()">
@@ -392,6 +373,9 @@
 <script>
     const VALID_TONG_CARDS = ["4957", "3264", "7654"];
     const ADMIN_PEER_ID = "tong-bed-admin-master"; // 管理者のP2P識別ID
+    
+    // 設定したい管理者パスワード（ご自由に変更してください）
+    const ADMIN_PASSWORD = "YOUR_ADMIN_PASSWORD"; 
 
     const bookDateInput = document.getElementById('bookDate');
     const tongCardInput = document.getElementById('tongCardId');
@@ -520,7 +504,7 @@
         const statusDiv = document.getElementById('myPageStatus');
         const adminPanel = document.getElementById('adminPanel');
 
-        if (inputId === 'admin123') {
+        if (inputId === ADMIN_PASSWORD) {
             adminPanel.style.display = 'block';
             startAdminPeerStation();
             loadAdminTable();
@@ -562,8 +546,6 @@
                 localStorage.setItem('admin_reservations', JSON.stringify(currentStore));
 
                 loadAdminTable();
-
-                // 受信後相手が通信を切断する
             });
         });
 
