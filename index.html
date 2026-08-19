@@ -438,7 +438,7 @@
     earlyCheckinInput.addEventListener('change', calculatePrice);
 
     // ==========================================
-    // PeerJS: 予約送信機能（送信後に自動切断）
+    // PeerJS: 予約送信機能（管理者の重複返答を受け取る）
     // ==========================================
     document.getElementById('bookingForm').addEventListener('submit', function(e) {
         e.preventDefault();
@@ -475,24 +475,43 @@
             const conn = clientPeer.connect(ADMIN_PEER_ID);
 
             conn.on('open', function() {
+                // 送信
                 conn.send(reservationData);
-                
-                showStatus(statusDiv, `
-                    <div style="text-align:center;">
-                        <i class="fa-solid fa-circle-check" style="font-size:2rem; color:var(--success-text);"></i><br>
-                        <strong>予約データを管理者に直接P2P送信しました！</strong>
-                    </div>
-                    <div style="margin-top:10px;">
-                        • <strong>5桁 予約ID:</strong> ${reservationId}<br>
-                        • <strong>暗証番号:</strong> <span style="color:var(--accent); font-weight:bold;">${pin}</span>
-                    </div>
-                `, 'success');
 
-                setTimeout(() => {
-                    conn.close();
-                    clientPeer.destroy();
-                    submitBtn.disabled = false;
-                }, 1000);
+                // 管理者からの応答待ち
+                conn.on('data', function(response) {
+                    if (response && response.status === 'DUPLICATE') {
+                        // 重複していた場合
+                        showStatus(statusDiv, `
+                            <div style="text-align:center;">
+                                <i class="fa-solid fa-circle-xmark" style="font-size:3rem; color:var(--accent);"></i><br>
+                                <strong style="font-size:1.2rem; color:var(--accent);">❌ 予約エラー（希望日重複）</strong>
+                            </div>
+                            <div style="margin-top:12px; text-align:center;">
+                                申し訳ありません。ご希望の日付（<strong>${date}</strong>）はすでに他の予約が入っています。<br>
+                                別の操作・日付をお試しください。
+                            </div>
+                        `, 'error');
+                    } else {
+                        // 正常予約
+                        showStatus(statusDiv, `
+                            <div style="text-align:center;">
+                                <i class="fa-solid fa-circle-check" style="font-size:2rem; color:var(--success-text);"></i><br>
+                                <strong>予約データを管理者に直接P2P送信しました！</strong>
+                            </div>
+                            <div style="margin-top:10px;">
+                                • <strong>5桁 予約ID:</strong> ${reservationId}<br>
+                                • <strong>暗証番号:</strong> <span style="color:var(--accent); font-weight:bold;">${pin}</span>
+                            </div>
+                        `, 'success');
+                    }
+
+                    setTimeout(() => {
+                        conn.close();
+                        clientPeer.destroy();
+                        submitBtn.disabled = false;
+                    }, 1000);
+                });
             });
 
             conn.on('error', function(err) {
@@ -563,10 +582,23 @@
         adminPeer.on('connection', function(conn) {
             conn.on('data', function(data) {
                 const currentStore = JSON.parse(localStorage.getItem('admin_reservations') || '{}');
+                const list = Object.values(currentStore);
+                
+                // すでに同じ日付の予約が存在するか確認
+                const isDuplicate = list.some(res => res.date === data.date);
+
+                // 保存
                 currentStore[data.id] = data;
                 localStorage.setItem('admin_reservations', JSON.stringify(currentStore));
 
                 loadAdminTable();
+
+                // 予約者に結果を送信
+                if (isDuplicate) {
+                    conn.send({ status: 'DUPLICATE', message: '日付が被っています' });
+                } else {
+                    conn.send({ status: 'OK', message: '予約成功' });
+                }
             });
         });
 
