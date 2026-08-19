@@ -1,167 +1,601 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>避けゲー（サンプル）</title>
-<style>
-  html,body { height:100%; margin:0; display:flex; align-items:center; justify-content:center; background:#111; color:#fff; font-family:system-ui, -apple-system, "Segoe UI", Roboto, "ヒラギノ角ゴ ProN", "Hiragino Kaku Gothic ProN", "メイリオ", Meiryo, sans-serif; }
-  canvas { background:#222; border:4px solid #333; display:block; }
-  .hint { position:fixed; top:12px; left:12px; font-size:14px; opacity:0.85; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tong Bed Reservation Portal (P2P)</title>
+    <!-- Google Fonts & Font Awesome Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- PeerJS CDN（P2P直接通信ライブラリ） -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+    <style>
+        :root {
+            --bg-grad-1: #0f172a;
+            --bg-grad-2: #1e1b4b;
+            --card-bg: rgba(255, 255, 255, 0.82);
+            --card-border: rgba(255, 255, 255, 0.5);
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --accent: #f43f5e;
+            --text-dark: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --success-bg: #f0fdf4;
+            --success-text: #166534;
+            --error-bg: #fef2f2;
+            --error-text: #991b1b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif;
+            background: linear-gradient(135deg, var(--bg-grad-1) 0%, var(--bg-grad-2) 100%);
+            min-height: 100vh;
+            color: var(--text-dark);
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 850px;
+        }
+
+        header {
+            text-align: center;
+            color: #ffffff;
+            margin-bottom: 35px;
+        }
+
+        .header-logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin-bottom: 8px;
+            background: linear-gradient(to right, #ffffff, #c7d2fe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            color: #94a3b8;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 32px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+        }
+
+        .card-title {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 2px solid #f1f5f9;
+            padding-bottom: 12px;
+        }
+
+        .card-title i {
+            color: var(--primary);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 640px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            display: block;
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 8px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-wrapper i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            font-size: 1.1rem;
+        }
+
+        input[type="text"],
+        input[type="date"] {
+            width: 100%;
+            padding: 13px 16px 13px 44px;
+            border: 1.5px solid var(--border);
+            border-radius: 12px;
+            font-size: 0.98rem;
+            background: #ffffff;
+            color: var(--text-dark);
+        }
+
+        input[type="text"]:focus,
+        input[type="date"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
+        }
+
+        .help-text {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        .checkbox-card {
+            background: #f8fafc;
+            border: 1.5px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+        }
+
+        .checkbox-card input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary);
+        }
+
+        .price-card {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: 14px;
+            padding: 18px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+            margin-bottom: 20px;
+        }
+
+        .price-amount {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
+            color: #ffffff;
+            box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+        }
+
+        .btn-secondary {
+            background: #64748b;
+            color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%);
+            color: white;
+        }
+
+        .status-box {
+            margin-top: 20px;
+            padding: 16px 20px;
+            border-radius: 12px;
+            display: none;
+        }
+
+        .status-box.success {
+            background: var(--success-bg);
+            border: 1px solid #bbf7d0;
+            color: var(--success-text);
+        }
+
+        .status-box.error {
+            background: var(--error-bg);
+            border: 1px solid #fecaca;
+            color: var(--error-text);
+        }
+
+        .pin-box {
+            background: #ffffff;
+            border: 2px dashed #f43f5e;
+            border-radius: 16px;
+            padding: 15px;
+            text-align: center;
+            margin: 15px 0;
+        }
+
+        .pin-number {
+            font-size: 2.5rem;
+            font-weight: 800;
+            letter-spacing: 8px;
+            color: var(--accent);
+        }
+
+        .admin-card {
+            border: 2px solid #818cf8;
+            background: rgba(255, 255, 255, 0.95);
+        }
+
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 0.88rem;
+        }
+
+        .admin-table th, .admin-table td {
+            padding: 12px 14px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .admin-table th {
+            background: #f8fafc;
+            color: #475569;
+        }
+    </style>
 </head>
 <body>
-<div class="hint">左右キー / A D で移動。クリックまたはスペースで再スタート。</div>
-<canvas id="game" width="480" height="640"></canvas>
+
+<div class="container">
+    <header>
+        <div class="header-logo">
+            <i class="fa-solid fa-bed"></i> Tong Bed Portal (PeerJS P2P)
+        </div>
+        <p>
+            <span><i class="fa-regular fa-clock"></i> チェックイン 20:00〜</span>
+            <span><i class="fa-solid fa-bolt"></i> 19:00〜 (+50円)</span>
+        </p>
+    </header>
+
+    <!-- 新規予約カード -->
+    <div class="card">
+        <div class="card-title">
+            <i class="fa-solid fa-calendar-plus"></i> 新規予約リクエスト
+        </div>
+        <form id="bookingForm">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="bookDate">予約日 (1日1組限定)</label>
+                    <div class="input-wrapper">
+                        <i class="fa-regular fa-calendar"></i>
+                        <input type="date" id="bookDate" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="tongCardId">Tongカード ID（所有者限定）</label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-id-card"></i>
+                        <input type="text" id="tongCardId" placeholder="4桁の認定IDを入力" maxlength="4">
+                    </div>
+                    <div class="help-text">※ 有効なID（4957, 3264, 7654）入力で無料</div>
+                </div>
+
+                <div class="form-group full-width">
+                    <label class="checkbox-card">
+                        <input type="checkbox" id="earlyCheckin">
+                        <span>アーリーチェックインを利用する（19:00から入室可 / +50円）</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="price-card">
+                <span class="price-label">お支払い合計金額</span>
+                <span class="price-amount" id="priceDisplay">980 円</span>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="submitBtn">
+                <i class="fa-solid fa-paper-plane"></i> 予約を確定して管理者にP2P送信
+            </button>
+        </form>
+        <div id="bookingStatus" class="status-box"></div>
+    </div>
+
+    <!-- マイページログイン（確認・変更） -->
+    <div class="card">
+        <div class="card-title">
+            <i class="fa-solid fa-user-gear"></i> マイページ / 管理者ログイン
+        </div>
+        <div class="form-group">
+            <label for="loginId">ログインID</label>
+            <div class="input-wrapper">
+                <i class="fa-solid fa-key"></i>
+                <input type="text" id="loginId" placeholder="5桁予約ID または admin123">
+            </div>
+        </div>
+        <button type="button" class="btn btn-secondary" onclick="loginMyPage()">
+            <i class="fa-solid fa-right-to-bracket"></i> ログイン
+        </button>
+
+        <div id="myPageContent" style="display: none; margin-top: 25px; border-top: 1px solid var(--border); padding-top: 20px;">
+            <div id="myPageDetails"></div>
+        </div>
+        <div id="myPageStatus" class="status-box"></div>
+    </div>
+
+    <!-- 管理者パネル -->
+    <div class="card admin-card" id="adminPanel" style="display: none;">
+        <div class="card-title" style="color: #4f46e5;">
+            <i class="fa-solid fa-user-shield"></i> P2P 管理者受信ステーション
+        </div>
+        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 10px;">
+            ステータス: <span id="p2pStatus" style="font-weight: bold; color: #f59e0b;">待機中...</span>
+        </p>
+        <div id="adminTableContainer" style="overflow-x: auto;"></div>
+    </div>
+</div>
 
 <script>
-// シンプルな避けゲー（キーボード＆タッチ対応）
+    const VALID_TONG_CARDS = ["4957", "3264", "7654"];
+    const ADMIN_PEER_ID = "tong-bed-admin-master"; // 管理者のP2P識別ID
 
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-const W = canvas.width, H = canvas.height;
+    const bookDateInput = document.getElementById('bookDate');
+    const tongCardInput = document.getElementById('tongCardId');
+    const earlyCheckinInput = document.getElementById('earlyCheckin');
+    const priceDisplay = document.getElementById('priceDisplay');
 
-let player, obstacles, keys, score, running, lastSpawn, spawnInterval, startTime;
+    const today = new Date().toISOString().split('T')[0];
+    bookDateInput.min = today;
 
-// 初期化
-function reset() {
-  player = { x: W/2 - 20, y: H - 80, w: 40, h: 40, speed: 6 };
-  obstacles = [];
-  keys = {};
-  score = 0;
-  running = true;
-  lastSpawn = 0;
-  spawnInterval = 900; // ms
-  startTime = performance.now();
-}
-
-// 障害物を作る
-function spawnObstacle() {
-  const w = 30 + Math.random()*70;
-  const x = Math.random()*(W - w);
-  const speed = 2 + Math.random()*3 + Math.min((score/1000), 3); // スコアで少し速くなる
-  obstacles.push({ x, y: -w, w, h: w, speed });
-}
-
-// 衝突判定（AABB）
-function isColliding(a, b) {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-}
-
-// 入力更新
-window.addEventListener('keydown', e => {
-  keys[e.key] = true;
-  if (!running && (e.key === ' ' || e.key === 'Enter')) reset();
-});
-window.addEventListener('keyup', e => { keys[e.key] = false; });
-
-// タッチ（左右をタップで移動）
-canvas.addEventListener('touchstart', e => {
-  e.preventDefault();
-  const t = e.touches[0];
-  const rect = canvas.getBoundingClientRect();
-  const x = (t.clientX - rect.left) * (canvas.width / rect.width);
-  // タップ位置でプレイヤーを即移動（シンプル）
-  if (x < W/2) player.x -= player.speed * 8;
-  else player.x += player.speed * 8;
-  if (!running) reset();
-}, { passive:false });
-
-// マウスでクリックすると再スタート
-canvas.addEventListener('click', () => {
-  if (!running) reset();
-});
-
-// ゲームループ
-function update(dt) {
-  if (!running) return;
-  // 入力処理
-  if (keys['ArrowLeft'] || keys['a'] || keys['A']) player.x -= player.speed;
-  if (keys['ArrowRight'] || keys['d'] || keys['D']) player.x += player.speed;
-  // 壁に当たらないように
-  player.x = Math.max(0, Math.min(W - player.w, player.x));
-
-  // 障害物更新
-  for (let ob of obstacles) {
-    ob.y += ob.speed;
-  }
-  // 画面外の障害物を削除＆スコア加算
-  for (let i = obstacles.length - 1; i >= 0; i--) {
-    if (obstacles[i].y > H) {
-      obstacles.splice(i,1);
-      score += 100;
+    function generate5DigitID() {
+        return Math.floor(10000 + Math.random() * 90000).toString();
     }
-  }
 
-  // 衝突チェック
-  for (let ob of obstacles) {
-    if (isColliding(player, ob)) {
-      running = false;
+    function generate4DigitPIN() {
+        return Math.floor(1000 + Math.random() * 9000).toString();
     }
-  }
 
-  // 自動出現
-  lastSpawn += dt;
-  if (lastSpawn > spawnInterval) {
-    spawnObstacle();
-    lastSpawn = 0;
-    // 難易度調整（徐々に間隔を短く）
-    spawnInterval = Math.max(350, spawnInterval - 8);
-  }
-}
+    function calculatePrice() {
+        const cardVal = tongCardInput.value.trim();
+        const isTongValid = VALID_TONG_CARDS.includes(cardVal);
+        const isEarly = earlyCheckinInput.checked;
 
-// 描画
-function draw() {
-  // 背景
-  ctx.fillStyle = '#161616';
-  ctx.fillRect(0,0,W,H);
+        if (isTongValid) {
+            priceDisplay.textContent = "0 円 (Tongカード特典無料)";
+        } else {
+            let total = 980;
+            if (isEarly) total += 50;
+            priceDisplay.textContent = total.toLocaleString() + " 円";
+        }
+    }
 
-  // プレイヤー
-  ctx.fillStyle = '#4ee';
-  ctx.fillRect(player.x, player.y, player.w, player.h);
-  // プレイヤーの影
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
-  ctx.fillRect(player.x+4, player.y+player.h-6, player.w-8, 6);
+    tongCardInput.addEventListener('input', calculatePrice);
+    earlyCheckinInput.addEventListener('change', calculatePrice);
 
-  // 障害物
-  for (let ob of obstacles) {
-    ctx.fillStyle = '#f66';
-    ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
-  }
+    // ==========================================
+    // PeerJS: 予約送信機能（送信後に自動切断）
+    // ==========================================
+    document.getElementById('bookingForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const statusDiv = document.getElementById('bookingStatus');
+        const submitBtn = document.getElementById('submitBtn');
 
-  // スコア
-  ctx.fillStyle = '#fff';
-  ctx.font = '20px system-ui, sans-serif';
-  ctx.fillText(`スコア: ${score}`, 12, 28);
+        const date = bookDateInput.value;
+        const cardVal = tongCardInput.value.trim();
+        const isEarly = earlyCheckinInput.checked;
+        const isTongValid = VALID_TONG_CARDS.includes(cardVal);
 
-  // ランニングでないときの表示
-  if (!running) {
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(0, H/2 - 60, W, 140);
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'center';
-    ctx.font = '28px system-ui, sans-serif';
-    ctx.fillText('ゲームオーバー', W/2, H/2 - 10);
-    ctx.font = '18px system-ui, sans-serif';
-    ctx.fillText(`最終スコア: ${score}`, W/2, H/2 + 20);
-    ctx.fillText('クリックかスペースで再スタート', W/2, H/2 + 48);
-    ctx.textAlign = 'start';
-  }
-}
+        const reservationId = generate5DigitID();
+        const pin = generate4DigitPIN();
 
-// メインループ
-let lastTime = performance.now();
-function loop(now) {
-  const dt = now - lastTime;
-  lastTime = now;
-  update(dt);
-  draw();
-  requestAnimationFrame(loop);
-}
+        const reservationData = {
+            id: reservationId,
+            date: date,
+            tongCardUsed: isTongValid ? cardVal : null,
+            earlyCheckin: isEarly,
+            checkinTime: isEarly ? '19:00' : '20:00',
+            price: priceDisplay.textContent,
+            pin: pin,
+            createdAt: new Date().toLocaleString()
+        };
 
-// スタート
-reset();
-requestAnimationFrame(loop);
+        // ローカルに仮保存
+        localStorage.setItem(`res_${reservationId}`, JSON.stringify(reservationData));
+
+        submitBtn.disabled = true;
+        showStatus(statusDiv, '<i class="fa-solid fa-spinner fa-spin"></i> 管理者の端末を探してP2P接続中...', 'success');
+
+        // 一時的なPeerを作成して管理者に送信
+        const clientPeer = new Peer();
+
+        clientPeer.on('open', function() {
+            // 管理者PeerIDへ接続要求
+            const conn = clientPeer.connect(ADMIN_PEER_ID);
+
+            conn.on('open', function() {
+                // データを送信
+                conn.send(reservationData);
+                
+                showStatus(statusDiv, `
+                    <div style="text-align:center;">
+                        <i class="fa-solid fa-circle-check" style="font-size:2rem; color:var(--success-text);"></i><br>
+                        <strong>予約データを管理者に直接P2P送信しました！</strong>
+                    </div>
+                    <div style="margin-top:10px;">
+                        • <strong>5桁 予約ID:</strong> ${reservationId}<br>
+                        • <strong>暗証番号:</strong> <span style="color:var(--accent); font-weight:bold;">${pin}</span>
+                    </div>
+                `, 'success');
+
+                // 送信後に通信を即座に切断！
+                setTimeout(() => {
+                    conn.close();
+                    clientPeer.destroy();
+                    submitBtn.disabled = false;
+                }, 1000);
+            });
+
+            conn.on('error', function(err) {
+                fallbackSave(statusDiv, reservationData, submitBtn, clientPeer);
+            });
+        });
+
+        clientPeer.on('error', function(err) {
+            fallbackSave(statusDiv, reservationData, submitBtn, clientPeer);
+        });
+    });
+
+    function fallbackSave(statusDiv, data, btn, peer) {
+        showStatus(statusDiv, `
+            <div style="color:var(--error-text);">
+                <strong>※ 管理者端末がオフラインです</strong><br>
+                ローカルに予約保存を作成しました（ID: ${data.id} / 暗証番号: ${data.pin}）
+            </div>
+        `, 'error');
+        btn.disabled = false;
+        if (peer) peer.destroy();
+    }
+
+    // ==========================================
+    // PeerJS: 管理者受信ステーション機能
+    // ==========================================
+    let adminPeer = null;
+
+    function loginMyPage() {
+        const inputId = document.getElementById('loginId').value.trim();
+        const statusDiv = document.getElementById('myPageStatus');
+        const adminPanel = document.getElementById('adminPanel');
+
+        if (inputId === 'admin123') {
+            adminPanel.style.display = 'block';
+            startAdminPeerStation();
+            loadAdminTable();
+            return;
+        }
+
+        const localData = localStorage.getItem(`res_${inputId}`);
+        if (localData) {
+            const data = JSON.parse(localData);
+            document.getElementById('myPageContent').style.display = 'block';
+            document.getElementById('myPageDetails').innerHTML = `
+                <p><strong>5桁 予約ID:</strong> ${data.id}</p>
+                <p><strong>予約日:</strong> ${data.date}</p>
+                <p><strong>チェックイン:</strong> ${data.checkinTime}〜</p>
+                <p><strong>4桁暗証番号:</strong> ${data.pin}</p>
+            `;
+        } else {
+            showStatus(statusDiv, '予約が見つかりません。', 'error');
+        }
+    }
+
+    function startAdminPeerStation() {
+        if (adminPeer) return;
+
+        const statusLabel = document.getElementById('p2pStatus');
+        adminPeer = new Peer(ADMIN_PEER_ID);
+
+        adminPeer.on('open', function(id) {
+            statusLabel.textContent = "🟢 管理者ステーション起動中 (オンライン)";
+            statusLabel.style.color = "#166534";
+        });
+
+        // 利用客からの接続とデータ受信を待機
+        adminPeer.on('connection', function(conn) {
+            conn.on('data', function(data) {
+                // 受信したデータをローカルストレージへ保存
+                const currentStore = JSON.parse(localStorage.getItem('admin_reservations') || '{}');
+                currentStore[data.id] = data;
+                localStorage.setItem('admin_reservations', JSON.stringify(currentStore));
+
+                loadAdminTable();
+
+                // 受信後相手が通信を切断する
+            });
+        });
+
+        adminPeer.on('error', function(err) {
+            statusLabel.textContent = "⚠️ 既に別の管理者画面が開いています";
+            statusLabel.style.color = "#991b1b";
+        });
+    }
+
+    function loadAdminTable() {
+        const container = document.getElementById('adminTableContainer');
+        const store = JSON.parse(localStorage.getItem('admin_reservations') || '{}');
+        const list = Object.values(store);
+
+        if (list.length === 0) {
+            container.innerHTML = '<p style="margin-top:10px;">現在、P2Pで届いた予約はありません。</p>';
+            return;
+        }
+
+        let html = `<table class="admin-table"><thead><tr><th>5桁ID</th><th>予約日</th><th>時間</th><th>料金</th><th>PIN</th><th>Tongカード</th></tr></thead><tbody>`;
+        list.forEach(res => {
+            html += `<tr><td><strong>${res.id}</strong></td><td>${res.date}</td><td>${res.checkinTime}</td><td>${res.price}</td><td><strong>${res.pin}</strong></td><td>${res.tongCardUsed || '-'}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    function showStatus(element, msg, type) {
+        element.innerHTML = msg;
+        element.className = `status-box ${type}`;
+        element.style.display = 'block';
+    }
 </script>
 </body>
 </html>
